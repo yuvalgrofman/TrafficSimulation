@@ -4,15 +4,20 @@ from matplotlib.animation import FuncAnimation
 import random
 from typing import List, Optional
 
+
 class Car:
+    car_counter = 0  # Static counter to assign unique IDs
+
     def __init__(self, position: float, velocity: float, car_length: float = 5.0,
                  desired_speed: float = 120.0, time_headway: float = 1.5,
                  min_gap: float = 2.0, acceleration: float = 0.3,
                  deceleration: float = 2.0, delta: float = 4.0):
         """
         Initialize a car with IDM parameters.
-        Speeds are in km/h, distances in m, accelerations in m/s^2.
         """
+        self.id = f"{Car.car_counter:05d}"  # Assign unique 5-digit ID
+        Car.car_counter += 1
+        
         self.position = position  # m
         self.velocity = velocity / 3.6  # Convert km/h to m/s
         self.acceleration = 0.0  # m/s^2
@@ -58,7 +63,7 @@ class Car:
 
 class Simulation:
     def __init__(self, road_length: float = 240000, inflow_rate: float = 0.1,
-                 min_speed: float = 80.0, max_speed: float = 120.0,
+                 min_speed: float = 20.0, max_speed: float = 120.0,
                  dt: float = 0.1):
         """
         Initialize traffic simulation.
@@ -138,70 +143,88 @@ class Simulation:
 
 
 class Visualization:
-    def __init__(self, simulation: Simulation, update_interval: int = 50):
+    def __init__(self, simulation: Simulation, update_interval: int = 50, visible_length: float = 4000):
         """
         Initialize visualization for traffic simulation.
-        update_interval: milliseconds between animation frames
         """
         self.simulation = simulation
         self.update_interval = update_interval
-        
+        self.visible_length = visible_length
+
         # Create figure and axes
-        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(10, 8))
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(12, 8))
         self.fig.tight_layout(pad=3.0)
-        
+
         # Initialize plots
-        self.cars_scatter = self.ax1.scatter([], [], s=30, c='blue')
-        self.ax1.set_xlim(0, simulation.road_length)
+        self.cars_scatter = self.ax1.scatter([], [], s=50, c='blue', marker='s')
+        self.car_labels = []
+        self.ax1.set_xlim(0, self.visible_length)
         self.ax1.set_ylim(-1, 1)
         self.ax1.set_xlabel('Position (m)')
         self.ax1.set_yticks([])
         self.ax1.set_title('Car Positions on Road')
-        
-        self.speed_scatter = self.ax2.scatter([], [], s=30, c=[])
+
+        # Initialize colormap for speeds
+        self.speed_scatter = self.ax2.scatter([], [], s=50, c=[], marker='s', cmap='viridis')
         self.speed_cbar = self.fig.colorbar(self.speed_scatter, ax=self.ax2)
         self.speed_cbar.set_label('Speed (km/h)')
-        self.ax2.set_xlim(0, simulation.road_length)
+        self.ax2.set_xlim(0, self.visible_length)
         self.ax2.set_ylim(-1, 1)
         self.ax2.set_xlabel('Position (m)')
         self.ax2.set_yticks([])
         self.ax2.set_title('Car Speeds')
-        
+
+        # Status text
+        self.status_text = self.fig.text(0.02, 0.95, "", fontsize=10)
+
         # Set animation
-        self.animation = FuncAnimation(
+        self.anim = FuncAnimation(
             self.fig, self.update, interval=self.update_interval,
-            blit=True, cache_frame_data=False
+            frames=None, blit=False, cache_frame_data=False
         )
-    
+
     def update(self, frame):
         """Update the visualization for each animation frame."""
-        # Update simulation
-        self.simulation.update()
-        
+        for _ in range(5):  # Update 5 times per frame for faster simulation
+            self.simulation.update()
+
         # Get current data
         positions = self.simulation.get_car_positions()
         velocities = self.simulation.get_car_velocities()
-        
+        cars = self.simulation.cars
+
+        # Update status text
+        status = f"Time: {self.simulation.time:.1f}s | Cars: {len(positions)} | "
+        if velocities:
+            status += f"Avg Speed: {np.mean(velocities):.1f} km/h"
+        self.status_text.set_text(status)
+
         # Update position plot
+        for label in self.car_labels:
+            label.remove()
+        self.car_labels = []
+
         if positions:
-            self.cars_scatter.set_offsets([(pos, 0) for pos in positions])
+            self.cars_scatter.set_offsets([(car.position, 0) for car in cars])
+            for car in cars:
+                label = self.ax1.text(car.position, 0.2, car.id, fontsize=10, ha='center', color='black')
+                self.car_labels.append(label)
         else:
             self.cars_scatter.set_offsets(np.empty((0, 2)))
-        
+
         # Update speed plot with color mapping
         if positions:
-            self.speed_scatter.set_offsets([(pos, 0) for pos in positions])
+            self.speed_scatter.set_offsets([(car.position, 0) for car in cars])
             self.speed_scatter.set_array(np.array(velocities))
             self.speed_scatter.set_clim(self.simulation.min_speed, self.simulation.max_speed)
         else:
             self.speed_scatter.set_offsets(np.empty((0, 2)))
             self.speed_scatter.set_array(np.array([]))
-        
-        return self.cars_scatter, self.speed_scatter
-    
+
     def show(self):
         """Display the animation."""
         plt.show()
+
 
 
 def run_simulation(simulation_time: float = 3600, visualization: bool = True):
@@ -210,16 +233,21 @@ def run_simulation(simulation_time: float = 3600, visualization: bool = True):
     simulation_time: time to run in seconds
     visualization: whether to show visualization
     """
-    sim = Simulation()
+    # Create simulation with a smaller time step for better accuracy
+    sim = Simulation(dt=0.05)
     
     if visualization:
-        vis = Visualization(sim)
+        # Run with visualization
+        vis = Visualization(sim, update_interval=20)  # Faster refresh rate
         vis.show()
     else:
         # Run simulation without visualization
         steps = int(simulation_time / sim.dt)
-        for _ in range(steps):
+        for i in range(steps):
             sim.update()
+            # Print progress every 10%
+            if i % (steps // 10) == 0:
+                print(f"Simulation progress: {i / steps * 100:.0f}%")
             
         # Final statistics
         velocities = sim.get_car_velocities()
@@ -231,5 +259,12 @@ def run_simulation(simulation_time: float = 3600, visualization: bool = True):
 
 
 if __name__ == "__main__":
-    # Run simulation with visualization for 1 hour
-    run_simulation(simulation_time=3600, visualization=True)
+    # Run simulation with visualization
+    import sys
+    
+    # Check if any command line arguments are provided
+    visualization = True
+    if len(sys.argv) > 1 and sys.argv[1].lower() == "novis":
+        visualization = False
+    
+    run_simulation(simulation_time=3600, visualization=visualization)
