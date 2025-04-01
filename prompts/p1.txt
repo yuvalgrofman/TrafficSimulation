@@ -38,3 +38,16 @@ In this case, we create a virtual car in front of it with a constant distance of
 Please write the code in Python in a modular, object-oriented and organized fashion.
 Please write the documentation very concisely and only when necessary.
 Thank you!
+
+
+For some reason the simulation doesn't work when using visualization, 
+but without it, it seems to work fine. 
+It seems that the problem is the the simulation isn't updated when using visualization. 
+Please fix this.
+
+Notice that the desired gap is not computed correctly, 
+the desired gap should be computed as:
+
+s* = s0 + v * T + (v * (v - v_lead)) / (2 * sqrt(a * b))
+
+Please fix this.
