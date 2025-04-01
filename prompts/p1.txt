@@ -1,0 +1,40 @@
+Hi, my goal is to simulate car traffic. 
+To be more precise, I want to create a microsimulation of traffic on a single lane road.
+This means that we assume all cars are in a single lane with no intersections or traffic lights.
+Moreover, we simulate the behaviour of each car and we do this by using the Intelligent Driver Model (IDM).
+The IDM is a car-following model that describes how a car accelerates and decelerates based on the distance to the car in front of it. 
+To be precise, the model works as follows:
+
+dv/dt = a * (1 - (v/v0)^delta - (s0 + max(0, v * T - s) / s0)^2)
+
+where: 
+v0 is the desired speed of the car, the default value should be 120 km/h
+T is the time headway, the natural range is between 0.8 and 2 seconds, 
+Agrresive drivers should have a low value of T, while cautious drivers should have a high value of T,
+s0 is the minimum distance to the car in front of it, the default value should be 2 meters,    
+a is the allowed acceleration, the default value should be 0.3 m/s^2,
+b is the allowed deceleration, the default value should be 2.0 m/s^2.
+
+The updates to the model should be done according to the following equations:
+
+v(t + dt) = v(t) + dv/dt * dt
+x(t + dt) = x(t) + v(t) * dt + 0.5 * dv/dt * dt^2
+s(t + dt) = x_l(t + dt) - x(t) - L_l
+
+where:
+x_l is the position of the car in front of it,
+and is the length of the car, the default value should be 5 meters. 
+
+To make it clear, we use the ballistic model to update the position of the car, while 
+using the IDM model to set the acceleration of the car.
+
+When running the simulation, all cars should drive on a highway with a inflow of 1 car every 10 seconds, 
+the cars should enter the simulation with a random speed between 80 and 120 km/h. 
+Moreover, the end of the road should be after 240 km and cars should be removed from the simulation when they reach the end of the road.
+
+Lastly, we must consider the case of the leading car which has no car in front of it.
+In this case, we create a virtual car in front of it with a constant distance of 1000 meters. 
+
+Please write the code in Python in a modular, object-oriented and organized fashion.
+Please write the documentation very concisely and only when necessary.
+Thank you!
