@@ -6,7 +6,7 @@ from matplotlib.widgets import Button, Slider, TextBox
 import random
 from collections import defaultdict
 from enum import Enum
-from vehicle import Vehicle
+from vehicle import Vehicle, DriverType
 from trafficSimulation import TrafficSimulation
 
 class SimulationGUI:
