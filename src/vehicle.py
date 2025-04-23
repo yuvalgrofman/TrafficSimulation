@@ -43,8 +43,7 @@ class Vehicle:
         self.distraction_duration = 0  # How long distraction will last
         self.last_distraction_check = 0  # Track last time we checked for distraction
         self.distraction_check_interval = 1.0  # How often to check for distraction (in seconds)
-        # self.distraction_probability = 0.005  # Probability of getting distracted during a check
-        self.distraction_probability = 0.1  # Probability of getting distracted during a check
+        self.distraction_probability = 0.005  # Probability of getting distracted during a check
         self.saved_velocity = None  # Store velocity during distraction
         
         # Set parameters based on driver type
