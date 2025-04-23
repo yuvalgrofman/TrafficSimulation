@@ -18,7 +18,7 @@ class DriverType(Enum):
 class Vehicle:
     def __init__(self, id, position, velocity, lane, desired_velocity, driver_type=DriverType.NORMAL, 
                  length=5.0, width=2.0, vis_height=0.5, vis_width=6, color=None,
-                 obstacle_start_time=0, obstacle_end_time=float('inf')):  # Added obstacle timing parameters
+                 obstacle_start_time=0, obstacle_end_time=float('inf'), can_be_distracted=True):  # Added can_be_distracted parameter
         self.id = id
         self.position = position  # longitudinal position (m)
         self.velocity = velocity  # current velocity (m/s)
@@ -35,6 +35,17 @@ class Vehicle:
         self.obstacle_start_time = obstacle_start_time  # Time when obstacle appears
         self.obstacle_end_time = obstacle_end_time  # Time when obstacle disappears
         self.is_active = self.driver_type != DriverType.OBSTACLE or obstacle_start_time == 0  # Track if obstacle is active
+        
+        # Distraction parameters
+        self.can_be_distracted = can_be_distracted  # Whether the vehicle can be distracted
+        self.is_distracted = False  # Current distraction status
+        self.distraction_start_time = 0  # When distraction started
+        self.distraction_duration = 0  # How long distraction will last
+        self.last_distraction_check = 0  # Track last time we checked for distraction
+        self.distraction_check_interval = 1.0  # How often to check for distraction (in seconds)
+        # self.distraction_probability = 0.005  # Probability of getting distracted during a check
+        self.distraction_probability = 0.1  # Probability of getting distracted during a check
+        self.saved_velocity = None  # Store velocity during distraction
         
         # Set parameters based on driver type
         self.set_driver_parameters()
@@ -189,6 +200,10 @@ class Vehicle:
         # Obstacles never change lanes
         if self.driver_type == DriverType.OBSTACLE:
             return self.lane
+            
+        # Distracted drivers don't change lanes
+        if self.is_distracted:
+            return self.lane
         
         # Get current acceleration
         current_acc = self.acceleration
@@ -341,7 +356,7 @@ class Vehicle:
         
         return total_advantage
         
-    def update(self, dt, vehicles, lanes_count, road_length, change_lanes=True, current_time=0):
+    def update(self, dt, vehicles, lanes_count, road_length, current_time, change_lanes=True):
         """Update vehicle position, velocity, and lane."""
         # Update obstacle activity status based on current time
         if self.driver_type == DriverType.OBSTACLE:
@@ -350,16 +365,34 @@ class Vehicle:
             if not self.is_active:
                 return
         
+        # Check for and handle distraction
+        self.check_distraction(current_time)
+        
         # Find lead vehicle in current lane
         lead_vehicle, _ = self.find_neighbors(vehicles, self.lane, road_length)
         
         # Calculate acceleration using IDM
         self.acceleration = self.idm_acceleration(lead_vehicle, road_length)
         
-        # Update velocity (obstacles remain static)
+        # Update velocity (obstacles remain static and distracted drivers don't update velocity)
         if self.driver_type != DriverType.OBSTACLE:
-            self.velocity += self.acceleration * dt
-            self.velocity = max(0, min(self.velocity, 2 * self.desired_velocity))  # limit velocity
+            # If not distracted, update velocity normally
+            if not self.is_distracted:
+                self.velocity += self.acceleration * dt
+                self.velocity = max(0, min(self.velocity, 2 * self.desired_velocity))  # limit velocity
+            else:
+                # If distracted, check for safety - even while distracted, make sure we don't crash
+                if lead_vehicle:
+                    gap = lead_vehicle.position - self.position - lead_vehicle.length
+                    if gap < 0:
+                        gap += road_length
+                    
+                    # If we're getting too close to a vehicle ahead, apply emergency braking
+                    safe_gap = self.min_gap + self.velocity * 1.0  # Use a simplified safety criterion
+                    if gap < safe_gap:
+                        # Emergency deceleration to avoid accident
+                        deceleration = min(self.comfortable_deceleration * 1.5, self.velocity / dt)
+                        self.velocity -= deceleration * dt
             
             # Update position
             self.position += self.velocity * dt
@@ -368,7 +401,38 @@ class Vehicle:
             if self.position > road_length:
                 self.position -= road_length
             
-            # Consider lane change (if allowed)
-            if change_lanes and random.random() < 0.1:  # Only consider lane changes occasionally
+            # Consider lane change (if allowed and not distracted)
+            if change_lanes and not self.is_distracted and random.random() < 0.1:  # Only consider lane changes occasionally
                 new_lane = self.mobil_decide_lane_change(vehicles, lanes_count, road_length)
                 self.lane = new_lane
+    
+    def check_distraction(self, current_time):
+        """Check if the driver should start or stop being distracted."""
+        # Obstacles and vehicles that can't be distracted are never distracted
+        if self.driver_type == DriverType.OBSTACLE or not self.can_be_distracted:
+            return
+        
+        # If currently distracted, check if distraction period is over
+        if self.is_distracted:
+            if current_time >= self.distraction_start_time + self.distraction_duration:
+                self.is_distracted = False
+                # Restore velocity if needed (in case we saved it)
+                if self.saved_velocity is not None:
+                    # We don't actually restore the exact velocity - that could be unsafe
+                    # Instead, let IDM handle the velocity going forward
+                    self.saved_velocity = None
+            return
+                
+        # Check for new distraction with low probability
+        # Only check at certain intervals to avoid constantly checking
+        if current_time - self.last_distraction_check >= self.distraction_check_interval:
+            self.last_distraction_check = current_time
+            
+            if random.random() < self.distraction_probability:
+                # Start distraction
+                self.is_distracted = True
+                self.distraction_start_time = current_time
+                # Random duration between 3-5 seconds
+                self.distraction_duration = random.uniform(3.0, 5.0)
+                # Save current velocity (though we may not use it directly)
+                self.saved_velocity = self.velocity

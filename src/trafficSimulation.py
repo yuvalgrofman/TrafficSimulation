@@ -10,7 +10,7 @@ from vehicle import Vehicle, DriverType
 
 class TrafficSimulation:
     def __init__(self, road_length=1000, lanes_count=3, n_vehicles=30, dt=0.5, 
-                 simulation_time=100, animation_interval=50):
+                 simulation_time=100, animation_interval=50, distracted_percentage=10):
         self.road_length = road_length  # length of the road (m)
         self.lanes_count = lanes_count  # number of lanes
         self.n_vehicles = n_vehicles  # number of vehicles
@@ -37,6 +37,9 @@ class TrafficSimulation:
         
         # Obstacles list
         self.obstacles = []
+
+        # Percentage of vehicles that can be distracted
+        self.distracted_percentage = distracted_percentage
         
         # Debug flag
         self.debug = False
@@ -86,6 +89,9 @@ class TrafficSimulation:
             # Set visualization dimensions
             vis_height, vis_width = 0.2, 20  # default dimensions
             
+            # Determine if this vehicle can be distracted based on distracted_percentage
+            can_be_distracted = random.randint(1, 100) <= self.distracted_percentage
+            
             # Create vehicle (starting at 70% of desired speed)
             vehicle = Vehicle(
                 id=i,
@@ -95,7 +101,8 @@ class TrafficSimulation:
                 desired_velocity=desired_velocity,
                 driver_type=driver_type,
                 vis_height=vis_height,
-                vis_width=vis_width
+                vis_width=vis_width,
+                can_be_distracted=can_be_distracted  # Set distraction capability
             )
             
             self.vehicles.append(vehicle)
@@ -160,7 +167,8 @@ class TrafficSimulation:
                     desired_velocity=vehicle_info['desired_velocity'],
                     driver_type=vehicle_info['driver_type'],
                     vis_height=0.2,
-                    vis_width=20
+                    vis_width=20,
+                    can_be_distracted=vehicle_info['is_distracted'],
                 )
 
                 new_vehicle.set_driver_parameters()
@@ -184,7 +192,7 @@ class TrafficSimulation:
         
         for vehicle in self.vehicles:
             # Update each vehicle, also passing obstacles information
-            vehicle.update(self.dt, self.vehicles, self.lanes_count, self.road_length)
+            vehicle.update(self.dt, self.vehicles, self.lanes_count, self.road_length, current_time=self.time)
             
         # Count lane changes
         for v in self.vehicles:
@@ -395,7 +403,8 @@ class TrafficSimulation:
         for v in sorted_vehicles:
             print(f"Vehicle {v.id}: Type {v.driver_type.name}, Lane {v.lane}, "
                   f"Pos {v.position:.1f}m, Speed {v.velocity:.1f}m/s ({v.velocity*3.6:.1f}km/h), "
-                  f"Target {v.desired_velocity:.1f}m/s")
+                  f"Target {v.desired_velocity:.1f}m/s", 
+                    f"Distraction: {'Yes' if v.can_be_distracted else 'No'}")
             
         # Print obstacle information
         if self.obstacles:

@@ -18,7 +18,8 @@ class SimulationGUI:
             'n_vehicles': 30,
             'dt': 0.5,
             'simulation_time': 120,
-            'animation_interval': 50
+            'animation_interval': 50,
+            'distracted_percentage': 0  # Adding default percentage of distracted drivers
         }
         self.simulation = None
         self.fig = None
@@ -30,6 +31,7 @@ class SimulationGUI:
         self.current_desired_velocity = 25  # m/s
         self.current_deployment_time = 0  # seconds
         self.current_initial_position = 0  # meters
+        self.current_is_distracted = False  # Add distracted state
         
         # Non-animated simulation steps
         self.non_animated_steps = 10 * 100
@@ -85,6 +87,7 @@ class SimulationGUI:
         ax_params.text(label_x, param_top + 0.09 - 6 * param_spacing, 'Sim Time (s):', ha='right', va='center')
         ax_params.text(label_x, param_top + 0.09 - 8 * param_spacing, 'Time Step (s):', ha='right', va='center')
         ax_params.text(label_x, param_top + 0.09 - 10 * param_spacing, 'Animation Speed:', ha='right', va='center')
+        ax_params.text(label_x, param_top + 0.09 - 12 * param_spacing, '% Distracted:', ha='right', va='center')
         
         # Text boxes
         ax_length = plt.axes([textbox_left, param_top - 0.015, textbox_width, param_height])
@@ -93,6 +96,7 @@ class SimulationGUI:
         ax_simtime = plt.axes([textbox_left, param_top - 3*param_spacing - 0.015, textbox_width, param_height])
         ax_dt = plt.axes([textbox_left, param_top - 4*param_spacing - 0.015, textbox_width, param_height])
         ax_interval = plt.axes([textbox_left, param_top - 5*param_spacing - 0.015, textbox_width, param_height])
+        ax_distracted_percentage = plt.axes([textbox_left, param_top - 6*param_spacing - 0.015, textbox_width, param_height])
         
         # Create text boxes
         self.textbox_length = TextBox(ax_length, '', initial=str(self.params['road_length']))
@@ -101,6 +105,9 @@ class SimulationGUI:
         self.textbox_simtime = TextBox(ax_simtime, '', initial=str(self.params['simulation_time']))
         self.textbox_dt = TextBox(ax_dt, '', initial=str(self.params['dt']))
         self.textbox_interval = TextBox(ax_interval, '', initial=str(self.params['animation_interval']))
+        self.textbox_distracted_percentage = TextBox(
+            ax_distracted_percentage, '', initial=str(self.params['distracted_percentage'])
+        )
         
         # ==== Vehicle Configuration Section ====
         config_left = 0.4
@@ -141,8 +148,13 @@ class SimulationGUI:
         self.textbox_deploy_time = TextBox(ax_deploy_time, 'Deploy Time (s): ', initial='0')
         self.textbox_deploy_time.on_submit(self.update_deploy_time)
         
+        # Distracted checkbox - new addition
+        ax_distracted = plt.axes([config_left, vehicle_config_start - 4*config_spacing, config_width, config_height])
+        self.checkbox_distracted = CheckButtons(ax_distracted, ['Distracted Driver'], [False])
+        self.checkbox_distracted.on_clicked(self.update_distracted)
+        
         # Add vehicle button - moved down to not overlap with inputs
-        ax_add_vehicle = plt.axes([config_left + 0.05, vehicle_config_start - 4*config_spacing - 0.05, 0.15, 0.05])
+        ax_add_vehicle = plt.axes([config_left + 0.05, vehicle_config_start - 5*config_spacing - 0.05, 0.15, 0.05])
         self.button_add_vehicle = Button(ax_add_vehicle, 'Add Vehicle')
         self.button_add_vehicle.on_clicked(self.add_vehicle_to_list)
         
@@ -185,9 +197,14 @@ class SimulationGUI:
         self.textbox_simtime.on_submit(self.update_params)
         self.textbox_dt.on_submit(self.update_params)
         self.textbox_interval.on_submit(self.update_params)
+        self.textbox_distracted_percentage.on_submit(self.update_params)
         
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.show()
+    
+    def update_distracted(self, label):
+        """Update the distracted status when the checkbox is toggled."""
+        self.current_is_distracted = self.checkbox_distracted.get_status()[0]
     
     def update_save_animation(self, label):
         """Update the save animation flag when the checkbox is toggled."""
@@ -278,6 +295,7 @@ class SimulationGUI:
             'desired_velocity': self.current_desired_velocity if self.current_driver_type != DriverType.OBSTACLE else 0,
             'deployment_time': self.current_deployment_time,
             'initial_position': self.current_initial_position,
+            'is_distracted': self.current_is_distracted,  # Added distracted state
         }
         
         self.vehicle_deployments.append(vehicle_info)
@@ -302,8 +320,8 @@ class SimulationGUI:
             return
         
         # Headers
-        headers = ["#", "Type", "Lane", "Pos", "Speed", "Deploy"]
-        header_pos = [0.05, 0.18, 0.33, 0.48, 0.65, 0.82]
+        headers = ["#", "Type", "Lane", "Pos", "Speed", "Deploy", "Distracted"]
+        header_pos = [0.05, 0.18, 0.33, 0.48, 0.63, 0.78, 0.93]
         for i, header in enumerate(headers):
             self.ax_vehicle_list.text(header_pos[i], 0.95, header, 
                                      fontweight='bold', fontsize=10)
@@ -342,6 +360,10 @@ class SimulationGUI:
             
             # Deployment time
             self.ax_vehicle_list.text(header_pos[5], y_pos, f"{vehicle['deployment_time']}", fontsize=9)
+            
+            # Distracted status
+            distracted_text = "Yes" if vehicle.get('is_distracted', False) else "No"
+            self.ax_vehicle_list.text(header_pos[6], y_pos, distracted_text, fontsize=9)
         
         # If we're showing a partial list, indicate how many more entries exist
         if start_idx > 0:
@@ -359,6 +381,14 @@ class SimulationGUI:
             self.params['simulation_time'] = float(self.textbox_simtime.text)
             self.params['dt'] = float(self.textbox_dt.text)
             self.params['animation_interval'] = float(self.textbox_interval.text)
+            
+            # Parse and validate distracted percentage
+            distracted_pct = float(self.textbox_distracted_percentage.text)
+            if 0 <= distracted_pct <= 100:
+                self.params['distracted_percentage'] = distracted_pct
+            else:
+                self.textbox_distracted_percentage.set_val('0')
+                self.params['distracted_percentage'] = 0
             
             # Validate and correct values if needed
             if self.params['lanes_count'] < 1:
@@ -391,13 +421,15 @@ class SimulationGUI:
             self.textbox_simtime.set_val(str(120))
             self.textbox_dt.set_val(str(0.5))
             self.textbox_interval.set_val(str(50))
+            self.textbox_distracted_percentage.set_val(str(0))
             self.params = {
                 'road_length': 1000,
                 'lanes_count': 3,
                 'n_vehicles': 30,
                 'dt': 0.5,
                 'simulation_time': 120,
-                'animation_interval': 50
+                'animation_interval': 50,
+                'distracted_percentage': 0
             }
         
     def create_simulation(self):
@@ -409,7 +441,8 @@ class SimulationGUI:
             n_vehicles=self.params['n_vehicles'],
             dt=self.params['dt'],
             simulation_time=self.params['simulation_time'],
-            animation_interval=self.params['animation_interval']
+            animation_interval=self.params['animation_interval'],
+            distracted_percentage=self.params['distracted_percentage']  # Pass distracted percentage
         )
         
         # Add the vehicle deployment schedule to the simulation
