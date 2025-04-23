@@ -7,8 +7,10 @@ from matplotlib.widgets import Button, Slider, TextBox, RadioButtons, CheckButto
 import random
 from collections import defaultdict
 from enum import Enum
+import pandas as pd
 from vehicle import Vehicle, DriverType
 from trafficSimulation import TrafficSimulation
+import os
 
 class SimulationGUI:
     def __init__(self):
@@ -38,6 +40,10 @@ class SimulationGUI:
         
         # Animation recording flag
         self.save_animation = False
+        
+        # Multiple simulations parameters
+        self.num_simulations = 5  # Default number of simulations to run
+        self.num_vehicles_array = [10, 20, 30, 40, 50]  # Default array of vehicle counts
         
     def setup_start_screen(self):
         """Create and display the start screen with parameter controls and vehicle deployment list."""
@@ -179,6 +185,23 @@ class SimulationGUI:
         self.checkbox_save_anim = CheckButtons(ax_save_anim, ['Save Animation'], [False])
         self.checkbox_save_anim.on_clicked(self.update_save_animation)
         
+        # ==== Multiple Simulations Section ====
+        # Number of simulations
+        ax_num_simulations = plt.axes([0.35, 0.22, 0.15, config_height])
+        self.textbox_num_simulations = TextBox(ax_num_simulations, 'Num Simulations: ', initial=str(self.num_simulations))
+        self.textbox_num_simulations.on_submit(self.update_num_simulations)
+        
+        # Vehicle counts array
+        ax_vehicle_counts = plt.axes([0.55, 0.22, 0.25, config_height])
+        initial_counts = ','.join(map(str, self.num_vehicles_array))
+        self.textbox_vehicle_counts = TextBox(ax_vehicle_counts, 'Vehicle Counts: ', initial=initial_counts)
+        self.textbox_vehicle_counts.on_submit(self.update_vehicle_counts)
+        
+        # Run multiple simulations button
+        ax_multi_sim = plt.axes([0.6, 0.05, 0.15, 0.07])
+        self.button_multi_sim = Button(ax_multi_sim, 'Run Multiple Simulations')
+        self.button_multi_sim.on_clicked(self.run_multiple_simulations)
+        
         # ==== Control Buttons Section ====
         # Start button - moved left
         ax_start = plt.axes([0.25, 0.15, 0.15, 0.07])
@@ -189,6 +212,11 @@ class SimulationGUI:
         ax_no_anim = plt.axes([0.6, 0.15, 0.15, 0.07])
         self.button_no_animation = Button(ax_no_anim, 'Run Without Animation')
         self.button_no_animation.on_clicked(self.run_without_animation)
+        
+        # Run multiple simulations button
+        ax_multi_sim = plt.axes([0.6, 0.05, 0.15, 0.07])
+        self.button_multi_sim = Button(ax_multi_sim, 'Run Multiple Simulations')
+        self.button_multi_sim.on_clicked(self.run_multiple_simulations)
         
         # Connect update functions
         self.textbox_length.on_submit(self.update_params)
@@ -201,6 +229,33 @@ class SimulationGUI:
         
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.show()
+    
+    def update_num_simulations(self, text):
+        """Update the number of simulations to run."""
+        try:
+            num = int(text)
+            if num > 0:
+                self.num_simulations = num
+            else:
+                self.textbox_num_simulations.set_val('5')
+                self.num_simulations = 5
+        except ValueError:
+            self.textbox_num_simulations.set_val('5')
+            self.num_simulations = 5
+    
+    def update_vehicle_counts(self, text):
+        """Update the array of vehicle counts for multiple simulations."""
+        try:
+            # Parse comma-separated list of numbers
+            counts = [int(x.strip()) for x in text.split(',')]
+            if all(count > 0 for count in counts):
+                self.num_vehicles_array = counts
+            else:
+                self.textbox_vehicle_counts.set_val('10,20,30,40,50')
+                self.num_vehicles_array = [10, 20, 30, 40, 50]
+        except ValueError:
+            self.textbox_vehicle_counts.set_val('10,20,30,40,50')
+            self.num_vehicles_array = [10, 20, 30, 40, 50]
     
     def update_distracted(self, label):
         """Update the distracted status when the checkbox is toggled."""
@@ -432,17 +487,21 @@ class SimulationGUI:
                 'distracted_percentage': 0
             }
         
-    def create_simulation(self):
+    def create_simulation(self, num_vehicles=None, to_print = True):
         """Create a simulation instance with the current parameters."""
         # Create simulation with selected parameters
+        if num_vehicles is None:
+            num_vehicles = self.params['n_vehicles']
+            
         simulation = TrafficSimulation(
             road_length=self.params['road_length'],
             lanes_count=self.params['lanes_count'],
-            n_vehicles=self.params['n_vehicles'],
+            n_vehicles=num_vehicles,
             dt=self.params['dt'],
             simulation_time=self.params['simulation_time'],
             animation_interval=self.params['animation_interval'],
-            distracted_percentage=self.params['distracted_percentage']  # Pass distracted percentage
+            distracted_percentage=self.params['distracted_percentage'], 
+            to_print=to_print
         )
         
         # Add the vehicle deployment schedule to the simulation
@@ -468,7 +527,125 @@ class SimulationGUI:
         self.simulation = self.create_simulation()
         
         # Enable debug mode to see detailed information 
-        self.simulation.debug = True
+        self.simulation.debug = False
         
         # Run the simulation without animation for the specified number of steps
         self.simulation.run_without_animation(steps=self.non_animated_steps)
+        
+    def run_multiple_simulations(self, event):
+        """
+        Run multiple simulations with different vehicle counts and collect statistics.
+        Each simulation will run for 1000 steps and the average speed will be recorded.
+        Results will be saved to two sheets in one Excel file.
+        """
+        plt.close(self.fig)  # Close start screen
+        
+        print(f"Starting multiple simulations: {self.num_simulations} runs for each of {len(self.num_vehicles_array)} vehicle counts")
+        print(f"Vehicle counts: {self.num_vehicles_array}")
+        
+        # Set up results storage
+        all_results = []
+        steps_per_simulation = 1000  # Fixed at 1000 steps per simulation
+        
+        # Run simulations for each vehicle count
+        for vehicle_count in self.num_vehicles_array:
+            print(f"\nRunning simulations with {vehicle_count} vehicles...")
+            
+            # Run multiple simulations with the same parameters
+            for sim_num in range(self.num_simulations):
+                print(f"  Simulation {sim_num + 1}/{self.num_simulations}...")
+                
+                # Create new simulation with current vehicle count
+                simulation = self.create_simulation(num_vehicles=vehicle_count, to_print=False)
+                
+                # Run without animation
+                avg_speed = simulation.run_without_animation(steps=steps_per_simulation)
+                
+                # Store result
+                result = {
+                    'Simulation Number': sim_num + 1,
+                    'Number of Vehicles': vehicle_count,
+                    'Number of Lanes': self.params['lanes_count'],
+                    'Road Length': self.params['road_length'],
+                    'Percentage of Distracted Vehicles': self.params['distracted_percentage'],
+                    'Average Speed': avg_speed
+                }
+                all_results.append(result)
+                
+                print(f"    Average speed: {avg_speed:.2f} m/s")
+        
+        # Create detailed results DataFrame
+        df_detailed = pd.DataFrame(all_results)
+        
+        # Create summary results DataFrame by grouping by vehicle count
+        df_summary = df_detailed.groupby(['Number of Vehicles', 'Number of Lanes', 'Road Length', 
+                                        'Percentage of Distracted Vehicles']).agg(
+            Average_Speed=('Average Speed', 'mean'),
+            Variance=('Average Speed', 'var'),
+            Std_Dev=('Average Speed', 'std'),
+            Min_Speed=('Average Speed', 'min'),
+            Max_Speed=('Average Speed', 'max')
+        ).reset_index().rename(columns={
+            'Average_Speed': 'Average Speed',
+            'Variance': 'Variance of Average Speed',
+            'Std_Dev': 'Standard Deviation of Average Speed',
+            'Min_Speed': 'Minimum Average Speed',
+            'Max_Speed': 'Maximum Average Speed'
+        })
+        
+        # Save both dataframes to different sheets in the same Excel file
+        timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+        excel_filename = f'simulation_results_{timestamp}.xlsx'
+        
+        # Use ExcelWriter to save multiple sheets to the same file
+        with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
+            df_detailed.to_excel(writer, sheet_name='Detailed Results', index=False)
+            df_summary.to_excel(writer, sheet_name='Summary Results', index=False)
+        
+        print(f"\nSimulations complete!")
+        print(f"Results saved to: {excel_filename}")
+        print(f"  - Sheet 1: Detailed Results")
+        print(f"  - Sheet 2: Summary Results")
+        
+        # Display summary results in a new figure
+        self.display_simulation_results(df_summary)
+
+    def display_simulation_results(self, df_summary):
+        """
+        Display the simulation results in a matplotlib figure
+        """
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Plot the average speed vs number of vehicles
+        ax.errorbar(
+            df_summary['Number of Vehicles'], 
+            df_summary['Average Speed'],
+            yerr=df_summary['Standard Deviation of Average Speed'],
+            fmt='o-', 
+            ecolor='red',
+            capsize=5,
+            label='Average Speed with Std Dev'
+        )
+        
+        # Add min/max as a shaded area
+        ax.fill_between(
+            df_summary['Number of Vehicles'],
+            df_summary['Minimum Average Speed'],
+            df_summary['Maximum Average Speed'],
+            alpha=0.2,
+            color='blue',
+            label='Min-Max Range'
+        )
+        
+        # Add labels and legend
+        ax.set_xlabel('Number of Vehicles')
+        ax.set_ylabel('Average Speed (m/s)')
+        ax.set_title(f'Simulation Results: Impact of Vehicle Count on Average Speed\n'
+                    f'({self.num_simulations} simulations per vehicle count, '
+                    f'{self.params["lanes_count"]} lanes, '
+                    f'{self.params["distracted_percentage"]}% distracted drivers)')
+        ax.grid(True)
+        ax.legend()
+        
+        plt.tight_layout()
+        plt.show()

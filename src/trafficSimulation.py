@@ -10,7 +10,7 @@ from vehicle import Vehicle, DriverType
 
 class TrafficSimulation:
     def __init__(self, road_length=1000, lanes_count=3, n_vehicles=30, dt=0.5, 
-                 simulation_time=100, animation_interval=50, distracted_percentage=10):
+                 simulation_time=100, animation_interval=50, distracted_percentage=10, to_print=False):
         self.road_length = road_length  # length of the road (m)
         self.lanes_count = lanes_count  # number of lanes
         self.n_vehicles = n_vehicles  # number of vehicles
@@ -20,6 +20,7 @@ class TrafficSimulation:
         
         self.vehicles = []
         self.time = 0
+        self.to_print = to_print  # Flag to print vehicle information
         
         # Vehicle deployment schedule
         self.scheduled_vehicles = []
@@ -238,27 +239,46 @@ class TrafficSimulation:
     
     def run_without_animation(self, steps=10):
         """Run simulation for specified steps without animation"""
-        print(f"Running {steps} steps without animation...")
-        
-        for i in range(steps):
-            self.run_step()
-            # Print debug info after each step
-            print(f"\nStep {i+1}, Time: {self.time:.1f}")
+        if self.to_print:
+            print(f"Running {steps} steps without animation...")
             
+            for i in range(steps):
+                self.run_step()
+                # Print debug info after each step
+                print(f"\nStep {i+1}, Time: {self.time:.1f}")
+                
+                if self.vehicles:
+                    avg_speed = sum(v.velocity for v in self.vehicles) / len(self.vehicles)
+                    print(f"Average speed: {avg_speed:.1f} m/s ({avg_speed*3.6:.1f} km/h)")
+                    print(f"Lane changes so far: {self.lane_changes}")
+                
+                # Print details for each vehicle
+                print("Vehicle details:")
+                for v in self.vehicles:
+                    print(f"  Vehicle {v.id}: Lane {v.lane}, Pos {v.position:.1f}, Speed {v.velocity:.1f} m/s, Type {v.driver_type}")
+                
+                # Check for problems
+                if self.debug:
+                    self.check_simulation_integrity()
+            
+            print("Non-animated simulation complete")
+            
+            # Return average speed
             if self.vehicles:
                 avg_speed = sum(v.velocity for v in self.vehicles) / len(self.vehicles)
-                print(f"Average speed: {avg_speed:.1f} m/s ({avg_speed*3.6:.1f} km/h)")
-                print(f"Lane changes so far: {self.lane_changes}")
+                return avg_speed
+            return -1
+        else:
+            for i in range(steps):
+                self.run_step()
             
-            # Print details for each vehicle
-            print("Vehicle details:")
-            for v in self.vehicles:
-                print(f"  Vehicle {v.id}: Lane {v.lane}, Pos {v.position:.1f}, Speed {v.velocity:.1f} m/s, Type {v.driver_type}")
+            print("Non-animated simulation complete")
             
-            # Check for problems
-            self.check_simulation_integrity()
-        
-        print("Non-animated simulation complete")
+            # Return average speed
+            if self.vehicles:
+                avg_speed = sum(v.velocity for v in self.vehicles) / len(self.vehicles)
+                return avg_speed
+            return -1
             
     def setup_animation(self):
         """Set up the animation."""
