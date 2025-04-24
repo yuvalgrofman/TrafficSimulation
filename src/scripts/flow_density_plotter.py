@@ -1,6 +1,7 @@
 import os
 import glob
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
@@ -60,7 +61,7 @@ def analyze_traffic_flow(folder_path, partition_type):
         distraction_percentages.sort()
         
         # Color map
-        colors = plt.cm.rainbow(pd.np.linspace(0, 1, len(distraction_percentages)))
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(distraction_percentages)))
         
         # Plot each distraction percentage with a different color
         for i, distraction in enumerate(distraction_percentages):
