@@ -10,7 +10,8 @@ from vehicle import Vehicle, DriverType
 
 class TrafficSimulation:
     def __init__(self, road_length=1000, lanes_count=3, n_vehicles=30, dt=0.5, 
-                 simulation_time=100, animation_interval=50, distracted_percentage=10, to_print=False):
+                 simulation_time=100, animation_interval=50, distracted_percentage=10, to_print=False,
+                 driver_distribution=None):
         self.road_length = road_length  # length of the road (m)
         self.lanes_count = lanes_count  # number of lanes
         self.n_vehicles = n_vehicles  # number of vehicles
@@ -44,6 +45,35 @@ class TrafficSimulation:
         
         # Debug flag
         self.debug = False
+
+        # Driver distribution
+        self.driver_distribution = driver_distribution if driver_distribution else {
+            DriverType.AGGRESSIVE: 0.3,
+            DriverType.NORMAL: 0.3,
+            DriverType.CAUTIOUS: 0.2,
+            DriverType.POLITE: 0.1,
+            DriverType.SUBMISSIVE: 0.1
+        }
+
+        self.num_each_driver_type = {
+            DriverType.AGGRESSIVE: int(self.driver_distribution[DriverType.AGGRESSIVE] * n_vehicles),
+            DriverType.NORMAL: int(self.driver_distribution[DriverType.NORMAL] * n_vehicles),
+            DriverType.CAUTIOUS: int(self.driver_distribution[DriverType.CAUTIOUS] * n_vehicles),
+            DriverType.POLITE: int(self.driver_distribution[DriverType.POLITE] * n_vehicles),
+            DriverType.SUBMISSIVE: int(self.driver_distribution[DriverType.SUBMISSIVE] * n_vehicles)
+        }
+
+        if sum(self.num_each_driver_type.values()) != n_vehicles:
+            self.num_each_driver_type[DriverType.NORMAL] += n_vehicles - sum(self.num_each_driver_type.values())
+
+        self.driver_types = []
+        for driver_type, count in self.num_each_driver_type.items():
+            # Append driver types based on their counts
+            for _ in range(int(count)):
+                self.driver_types.append(driver_type)
+        
+        # Reorder the driver types randomly
+        random.shuffle(self.driver_types)
         
         # Initialize vehicles
         if n_vehicles > 0:
@@ -82,11 +112,7 @@ class TrafficSimulation:
             desired_velocity = random.uniform(25, 35)
             
             # Assign driver type with different probabilities
-            driver_type = random.choices(
-                list(DriverType),
-                weights=[0, 1, 0, 0, 0, 0]  
-                # Aggressive, Normal, Cautious, Polite, Submissive
-            )[0]
+            driver_type = self.driver_types[i]
             
             # Set visualization dimensions
             vis_height, vis_width = 0.2, 20  # default dimensions

@@ -11,6 +11,7 @@ import pandas as pd
 from vehicle import Vehicle, DriverType
 from trafficSimulation import TrafficSimulation
 import os
+from tkinter import Tk, filedialog
 
 class SimulationGUI:
     def __init__(self):
@@ -21,7 +22,14 @@ class SimulationGUI:
             'dt': 0.5,
             'simulation_time': 120,
             'animation_interval': 50,
-            'distracted_percentage': 0  # Adding default percentage of distracted drivers
+            'distracted_percentage': 0,  # Adding default percentage of distracted drivers
+            'driver_type_distribution': {  # Add default driver type distribution
+                DriverType.AGGRESSIVE: 0.1,
+                DriverType.NORMAL: 0.6,
+                DriverType.CAUTIOUS: 0.2,
+                DriverType.POLITE: 0.05,
+                DriverType.SUBMISSIVE: 0.05
+            }
         }
         self.simulation = None
         self.fig = None
@@ -45,6 +53,7 @@ class SimulationGUI:
         self.num_simulations = 8  # Default number of simulations to run
         self.num_vehicles_array = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]  # Default array of vehicle counts
         self.num_vehicles_array.reverse()  # Reverse the order for better visualization
+
         
     def setup_start_screen(self):
         """Create and display the start screen with parameter controls and vehicle deployment list."""
@@ -108,7 +117,10 @@ class SimulationGUI:
         ax_distracted_percentage = plt.axes([textbox_left, param_top - 6*param_spacing - 0.015, textbox_width, param_height])
         ax_num_simulations = plt.axes([textbox_left, param_top - 7*param_spacing - 0.015, textbox_width, param_height])
         ax_vehicle_counts = plt.axes([textbox_left, param_top - 8*param_spacing - 0.015, textbox_width, param_height])
-        
+        # Driver type distribution
+        ax_params.text(label_x, param_top - 16 * param_spacing, 'Driver Dist [A,N,C,P,S]:', ha='right', va='center')
+        ax_driver_dist = plt.axes([textbox_left, param_top - 9*param_spacing, textbox_width, param_height])
+
         # Create text boxes
         self.textbox_length = TextBox(ax_length, '', initial=str(self.params['road_length']))
         self.textbox_lanes = TextBox(ax_lanes, '', initial=str(self.params['lanes_count']))
@@ -124,6 +136,11 @@ class SimulationGUI:
         # For vehicle counts, join the array with commas
         initial_counts = ','.join(map(str, self.num_vehicles_array))
         self.textbox_vehicle_counts = TextBox(ax_vehicle_counts, '', initial=initial_counts)
+
+        # Driver type distribution
+        default_dist = self.create_distribution_string()
+        self.textbox_driver_dist = TextBox(ax_driver_dist, '', initial=default_dist)
+        self.textbox_driver_dist.on_submit(self.update_driver_distribution)
         
         # ==== Vehicle Configuration Section ====
         config_left = 0.4
@@ -191,8 +208,8 @@ class SimulationGUI:
         
         # ==== Save Animation Toggle ====
         # Add a checkbox for save animation toggle
-        ax_save_anim = plt.axes([0.35, 0.08, 0.1, 0.05])
-        self.checkbox_save_anim = CheckButtons(ax_save_anim, ['Save Animation'], [False])
+        ax_save_anim = plt.axes([0.20, 0.15, 0.05, 0.07])
+        self.checkbox_save_anim = CheckButtons(ax_save_anim, ['Save'], [False])
         self.checkbox_save_anim.on_clicked(self.update_save_animation)
         
         # ==== Control Buttons Section ====
@@ -221,10 +238,54 @@ class SimulationGUI:
         self.textbox_distracted_percentage.on_submit(self.update_params)
         self.textbox_num_simulations.on_submit(self.update_num_simulations)
         self.textbox_vehicle_counts.on_submit(self.update_vehicle_counts)
-        
+
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.show()
-    
+
+    def create_distribution_string(self):
+        """Create a string representation of the driver type distribution."""
+        dist = self.params['driver_type_distribution']
+        return f"{dist[DriverType.AGGRESSIVE]:.2f},{dist[DriverType.NORMAL]:.2f},{dist[DriverType.CAUTIOUS]:.2f},{dist[DriverType.POLITE]:.2f},{dist[DriverType.SUBMISSIVE]:.2f}"
+
+    def update_driver_distribution(self, text):
+        """Parse and update the driver type distribution from the text input."""
+        try:
+            # Parse comma-separated list of numbers
+            values = [float(x.strip()) for x in text.split(',')]
+            
+            # Check if we have exactly 5 values (one for each driver type)
+            if len(values) != 5:
+                raise ValueError("Need exactly 5 values")
+                
+            # Check if values sum to approximately 1.0 (allow for small floating point errors)
+            if not 0.99 <= sum(values) <= 1.01:
+                raise ValueError("Values must sum to 1.0")
+                
+            # Check if all values are non-negative
+            if any(v < 0 for v in values):
+                raise ValueError("All values must be non-negative")
+                
+            # Update the driver type distribution
+            self.params['driver_type_distribution'] = {
+                DriverType.AGGRESSIVE: values[0],
+                DriverType.NORMAL: values[1],
+                DriverType.CAUTIOUS: values[2],
+                DriverType.POLITE: values[3],
+                DriverType.SUBMISSIVE: values[4]
+            }
+            
+        except Exception as e:
+            # Reset to default distribution
+            self.params['driver_type_distribution'] = {
+                DriverType.AGGRESSIVE: 0.1,
+                DriverType.NORMAL: 0.6,
+                DriverType.CAUTIOUS: 0.2,
+                DriverType.POLITE: 0.05,
+                DriverType.SUBMISSIVE: 0.05
+            }
+            self.textbox_driver_dist.set_val(self.create_distribution_string())
+            print(f"Error parsing driver distribution: {e}")
+
     def update_num_simulations(self, text):
         """Update the number of simulations to run."""
         try:
@@ -440,6 +501,8 @@ class SimulationGUI:
                 self.textbox_distracted_percentage.set_val('0')
                 self.params['distracted_percentage'] = 0
             
+            # Note: Driver distribution is handled separately in update_driver_distribution
+            
             # Validate and correct values if needed
             if self.params['lanes_count'] < 1:
                 self.params['lanes_count'] = 1
@@ -462,7 +525,7 @@ class SimulationGUI:
             if current_position > self.params['road_length']:
                 self.textbox_position.set_val(str(self.params['road_length']))
                 self.current_initial_position = self.params['road_length']
-                
+                    
         except ValueError:
             # Reset to defaults if invalid input
             self.textbox_length.set_val(str(1000))
@@ -472,6 +535,11 @@ class SimulationGUI:
             self.textbox_dt.set_val(str(0.5))
             self.textbox_interval.set_val(str(50))
             self.textbox_distracted_percentage.set_val(str(0))
+            
+            # Also reset the driver distribution
+            default_dist = "0.10,0.60,0.20,0.05,0.05"
+            self.textbox_driver_dist.set_val(default_dist)
+            
             self.params = {
                 'road_length': 1000,
                 'lanes_count': 3,
@@ -479,10 +547,17 @@ class SimulationGUI:
                 'dt': 0.5,
                 'simulation_time': 120,
                 'animation_interval': 50,
-                'distracted_percentage': 0
+                'distracted_percentage': 0,
+                'driver_type_distribution': {
+                    DriverType.AGGRESSIVE: 0.1,
+                    DriverType.NORMAL: 0.6,
+                    DriverType.CAUTIOUS: 0.2,
+                    DriverType.POLITE: 0.05,
+                    DriverType.SUBMISSIVE: 0.05
+                }
             }
         
-    def create_simulation(self, num_vehicles=None, to_print = True):
+    def create_simulation(self, num_vehicles=None, to_print=True):
         """Create a simulation instance with the current parameters."""
         # Create simulation with selected parameters
         if num_vehicles is None:
@@ -495,7 +570,8 @@ class SimulationGUI:
             dt=self.params['dt'],
             simulation_time=self.params['simulation_time'],
             animation_interval=self.params['animation_interval'],
-            distracted_percentage=self.params['distracted_percentage'], 
+            distracted_percentage=self.params['distracted_percentage'],
+            driver_distribution=self.params['driver_type_distribution'],
             to_print=to_print
         )
         
@@ -575,7 +651,15 @@ class SimulationGUI:
                     'Number of Vehicles': vehicle_count,
                     'Number of Lanes': self.params['lanes_count'],
                     'Road Length': self.params['road_length'],
+                    'Simulation Time (s)': self.params['simulation_time'],
+                    'Time Step (s)': self.params['dt'],
+                    'Animation Interval (ms)': self.params['animation_interval'],
                     'Percentage of Distracted Vehicles': self.params['distracted_percentage'],
+                    'Aggressive %': self.params['driver_type_distribution'][DriverType.AGGRESSIVE] * 100,
+                    'Normal %': self.params['driver_type_distribution'][DriverType.NORMAL] * 100,
+                    'Cautious %': self.params['driver_type_distribution'][DriverType.CAUTIOUS] * 100,
+                    'Polite %': self.params['driver_type_distribution'][DriverType.POLITE] * 100,
+                    'Submissive %': self.params['driver_type_distribution'][DriverType.SUBMISSIVE] * 100,
                     'Average Speed': avg_speed,
                     'Density': density,
                     'Flow': flow
@@ -597,11 +681,19 @@ class SimulationGUI:
             Std_Dev=('Average Speed', 'std'),
             Min_Speed=('Average Speed', 'min'),
             Max_Speed=('Average Speed', 'max'),
-            Density=('Density', 'first'),  # Since density is the same for each group
+            Density=('Density', 'first'),
             Average_Flow=('Flow', 'mean'),
             Flow_Std_Dev=('Flow', 'std'),
             Min_Flow=('Flow', 'min'),
-            Max_Flow=('Flow', 'max')
+            Max_Flow=('Flow', 'max'),
+            Simulation_Time=('Simulation Time (s)', 'first'),
+            Time_Step=('Time Step (s)', 'first'),
+            Animation_Interval=('Animation Interval (ms)', 'first'),
+            Aggressive_Percent=('Aggressive %', 'first'),
+            Normal_Percent=('Normal %', 'first'),
+            Cautious_Percent=('Cautious %', 'first'),
+            Polite_Percent=('Polite %', 'first'),
+            Submissive_Percent=('Submissive %', 'first'),
         ).reset_index().rename(columns={
             'Average_Speed': 'Average Speed',
             'Variance': 'Variance of Average Speed',
@@ -611,7 +703,15 @@ class SimulationGUI:
             'Average_Flow': 'Average Flow',
             'Flow_Std_Dev': 'Standard Deviation of Flow',
             'Min_Flow': 'Minimum Flow',
-            'Max_Flow': 'Maximum Flow'
+            'Max_Flow': 'Maximum Flow',
+            'Simulation_Time': 'Simulation Time (s)',
+            'Time_Step': 'Time Step (s)',
+            'Animation_Interval': 'Animation Interval (ms)',
+            'Aggressive_Percent': 'Aggressive %',
+            'Normal_Percent': 'Normal %',
+            'Cautious_Percent': 'Cautious %',
+            'Polite_Percent': 'Polite %',
+            'Submissive_Percent': 'Submissive %',
         })
         
         # Save both dataframes to different sheets in the same Excel file
@@ -791,9 +891,18 @@ class SimulationGUI:
             f.write(f"  - Number of simulations per configuration: {self.num_simulations}\n")
             f.write(f"  - Road length: {self.params['road_length']} meters\n")
             f.write(f"  - Number of lanes: {self.params['lanes_count']}\n")
+            f.write(f"  - Simulation time: {self.params['simulation_time']} seconds\n")
+            f.write(f"  - Time step (dt): {self.params['dt']} seconds\n")
+            f.write(f"  - Animation interval: {self.params['animation_interval']} ms\n")
             f.write(f"  - Vehicle counts tested: {', '.join(map(str, self.num_vehicles_array))}\n")
             f.write(f"  - Percentage of distracted drivers: {self.params['distracted_percentage']}%\n")
-            f.write(f"  - Simulation time step: {self.params['dt']} seconds\n\n")
+            f.write(f"  - Driver type distribution:\n")
+            dist = self.params['driver_type_distribution']
+            f.write(f"    * Aggressive: {dist[DriverType.AGGRESSIVE] * 100:.1f}%\n")
+            f.write(f"    * Normal: {dist[DriverType.NORMAL] * 100:.1f}%\n")
+            f.write(f"    * Cautious: {dist[DriverType.CAUTIOUS] * 100:.1f}%\n")
+            f.write(f"    * Polite: {dist[DriverType.POLITE] * 100:.1f}%\n")
+            f.write(f"    * Submissive: {dist[DriverType.SUBMISSIVE] * 100:.1f}%\n\n")
             f.write(f"Files in this folder:\n")
             f.write(f"  - combined_plots.png: Combined visualization of both key metrics\n")
             f.write(f"  - speed_vs_vehicles.png: Plot of average speed vs number of vehicles\n")
