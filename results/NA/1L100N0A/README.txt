@@ -1,13 +1,13 @@
 Traffic Simulation Results
 ========================
 
-Date and Time: 2025-04-24 06:30:02
+Date and Time: 2025-04-24 13:51:23
 
 Simulation Parameters:
-  - Number of simulations per configuration: 5
+  - Number of simulations per configuration: 8
   - Road length: 1000 meters
-  - Number of lanes: 3
-  - Vehicle counts tested: 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 80
+  - Number of lanes: 1
+  - Vehicle counts tested: 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10
   - Percentage of distracted drivers: 0%
   - Simulation time step: 0.5 seconds
 

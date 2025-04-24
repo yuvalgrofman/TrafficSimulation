@@ -84,7 +84,8 @@ class TrafficSimulation:
             # Assign driver type with different probabilities
             driver_type = random.choices(
                 list(DriverType),
-                weights=[0.5, 0.5, 0, 0, 0, 0]  # 15% aggressive, 40% normal, etc.
+                weights=[0, 1, 0, 0, 0, 0]  
+                # Aggressive, Normal, Cautious, Polite, Submissive
             )[0]
             
             # Set visualization dimensions

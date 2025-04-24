@@ -95,6 +95,8 @@ class SimulationGUI:
         ax_params.text(label_x, param_top + 0.09 - 8 * param_spacing, 'Time Step (s):', ha='right', va='center')
         ax_params.text(label_x, param_top + 0.09 - 10 * param_spacing, 'Animation Speed:', ha='right', va='center')
         ax_params.text(label_x, param_top + 0.09 - 12 * param_spacing, '% Distracted:', ha='right', va='center')
+        ax_params.text(label_x, param_top + 0.09 - 14 * param_spacing, 'Num Simulations:', ha='right', va='center')
+        ax_params.text(label_x, param_top + 0.09 - 16 * param_spacing, 'Vehicle Counts:', ha='right', va='center')
         
         # Text boxes
         ax_length = plt.axes([textbox_left, param_top - 0.015, textbox_width, param_height])
@@ -104,6 +106,8 @@ class SimulationGUI:
         ax_dt = plt.axes([textbox_left, param_top - 4*param_spacing - 0.015, textbox_width, param_height])
         ax_interval = plt.axes([textbox_left, param_top - 5*param_spacing - 0.015, textbox_width, param_height])
         ax_distracted_percentage = plt.axes([textbox_left, param_top - 6*param_spacing - 0.015, textbox_width, param_height])
+        ax_num_simulations = plt.axes([textbox_left, param_top - 7*param_spacing - 0.015, textbox_width, param_height])
+        ax_vehicle_counts = plt.axes([textbox_left, param_top - 8*param_spacing - 0.015, textbox_width, param_height])
         
         # Create text boxes
         self.textbox_length = TextBox(ax_length, '', initial=str(self.params['road_length']))
@@ -115,6 +119,11 @@ class SimulationGUI:
         self.textbox_distracted_percentage = TextBox(
             ax_distracted_percentage, '', initial=str(self.params['distracted_percentage'])
         )
+        self.textbox_num_simulations = TextBox(ax_num_simulations, '', initial=str(self.num_simulations))
+        
+        # For vehicle counts, join the array with commas
+        initial_counts = ','.join(map(str, self.num_vehicles_array))
+        self.textbox_vehicle_counts = TextBox(ax_vehicle_counts, '', initial=initial_counts)
         
         # ==== Vehicle Configuration Section ====
         config_left = 0.4
@@ -186,23 +195,6 @@ class SimulationGUI:
         self.checkbox_save_anim = CheckButtons(ax_save_anim, ['Save Animation'], [False])
         self.checkbox_save_anim.on_clicked(self.update_save_animation)
         
-        # ==== Multiple Simulations Section ====
-        # Number of simulations
-        ax_num_simulations = plt.axes([0.35, 0.22, 0.15, config_height])
-        self.textbox_num_simulations = TextBox(ax_num_simulations, 'Num Simulations: ', initial=str(self.num_simulations))
-        self.textbox_num_simulations.on_submit(self.update_num_simulations)
-        
-        # Vehicle counts array
-        ax_vehicle_counts = plt.axes([0.55, 0.22, 0.25, config_height])
-        initial_counts = ','.join(map(str, self.num_vehicles_array))
-        self.textbox_vehicle_counts = TextBox(ax_vehicle_counts, 'Vehicle Counts: ', initial=initial_counts)
-        self.textbox_vehicle_counts.on_submit(self.update_vehicle_counts)
-        
-        # Run multiple simulations button
-        ax_multi_sim = plt.axes([0.6, 0.05, 0.15, 0.07])
-        self.button_multi_sim = Button(ax_multi_sim, 'Run Multiple Simulations')
-        self.button_multi_sim.on_clicked(self.run_multiple_simulations)
-        
         # ==== Control Buttons Section ====
         # Start button - moved left
         ax_start = plt.axes([0.25, 0.15, 0.15, 0.07])
@@ -227,6 +219,8 @@ class SimulationGUI:
         self.textbox_dt.on_submit(self.update_params)
         self.textbox_interval.on_submit(self.update_params)
         self.textbox_distracted_percentage.on_submit(self.update_params)
+        self.textbox_num_simulations.on_submit(self.update_num_simulations)
+        self.textbox_vehicle_counts.on_submit(self.update_vehicle_counts)
         
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.show()
