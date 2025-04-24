@@ -16,7 +16,7 @@ class SimulationGUI:
     def __init__(self):
         self.params = {
             'road_length': 1000,
-            'lanes_count': 3,
+            'lanes_count': 1,
             'n_vehicles': 30,
             'dt': 0.5,
             'simulation_time': 120,
@@ -42,8 +42,9 @@ class SimulationGUI:
         self.save_animation = False
         
         # Multiple simulations parameters
-        self.num_simulations = 5  # Default number of simulations to run
-        self.num_vehicles_array = [10, 20, 30, 40, 50]  # Default array of vehicle counts
+        self.num_simulations = 8  # Default number of simulations to run
+        self.num_vehicles_array = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]  # Default array of vehicle counts
+        self.num_vehicles_array.reverse()  # Reverse the order for better visualization
         
     def setup_start_screen(self):
         """Create and display the start screen with parameter controls and vehicle deployment list."""
@@ -537,8 +538,15 @@ class SimulationGUI:
         Run multiple simulations with different vehicle counts and collect statistics.
         Each simulation will run for 1000 steps and the average speed will be recorded.
         Results will be saved to two sheets in one Excel file.
+        All outputs are stored in a dedicated folder for this simulation run.
         """
         plt.close(self.fig)  # Close start screen
+        
+        # Create a dedicated folder for this simulation run
+        timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+        folder_name = f'results/simulation_run_{timestamp}'
+        os.makedirs(folder_name, exist_ok=True)
+        print(f"Creating output folder: {folder_name}")
         
         print(f"Starting multiple simulations: {self.num_simulations} runs for each of {len(self.num_vehicles_array)} vehicle counts")
         print(f"Vehicle counts: {self.num_vehicles_array}")
@@ -551,6 +559,9 @@ class SimulationGUI:
         for vehicle_count in self.num_vehicles_array:
             print(f"\nRunning simulations with {vehicle_count} vehicles...")
             
+            # Calculate density: vehicles / (road length * lanes)
+            density = vehicle_count / (self.params['road_length'] * self.params['lanes_count'])
+            
             # Run multiple simulations with the same parameters
             for sim_num in range(self.num_simulations):
                 print(f"  Simulation {sim_num + 1}/{self.num_simulations}...")
@@ -561,6 +572,9 @@ class SimulationGUI:
                 # Run without animation
                 avg_speed = simulation.run_without_animation(steps=steps_per_simulation)
                 
+                # Calculate flow: density * average speed
+                flow = density * avg_speed
+                
                 # Store result
                 result = {
                     'Simulation Number': sim_num + 1,
@@ -568,11 +582,15 @@ class SimulationGUI:
                     'Number of Lanes': self.params['lanes_count'],
                     'Road Length': self.params['road_length'],
                     'Percentage of Distracted Vehicles': self.params['distracted_percentage'],
-                    'Average Speed': avg_speed
+                    'Average Speed': avg_speed,
+                    'Density': density,
+                    'Flow': flow
                 }
                 all_results.append(result)
                 
                 print(f"    Average speed: {avg_speed:.2f} m/s")
+                print(f"    Density: {density:.4f} vehicles/m")
+                print(f"    Flow: {flow:.4f} vehicles/s")
         
         # Create detailed results DataFrame
         df_detailed = pd.DataFrame(all_results)
@@ -584,18 +602,26 @@ class SimulationGUI:
             Variance=('Average Speed', 'var'),
             Std_Dev=('Average Speed', 'std'),
             Min_Speed=('Average Speed', 'min'),
-            Max_Speed=('Average Speed', 'max')
+            Max_Speed=('Average Speed', 'max'),
+            Density=('Density', 'first'),  # Since density is the same for each group
+            Average_Flow=('Flow', 'mean'),
+            Flow_Std_Dev=('Flow', 'std'),
+            Min_Flow=('Flow', 'min'),
+            Max_Flow=('Flow', 'max')
         ).reset_index().rename(columns={
             'Average_Speed': 'Average Speed',
             'Variance': 'Variance of Average Speed',
             'Std_Dev': 'Standard Deviation of Average Speed',
             'Min_Speed': 'Minimum Average Speed',
-            'Max_Speed': 'Maximum Average Speed'
+            'Max_Speed': 'Maximum Average Speed',
+            'Average_Flow': 'Average Flow',
+            'Flow_Std_Dev': 'Standard Deviation of Flow',
+            'Min_Flow': 'Minimum Flow',
+            'Max_Flow': 'Maximum Flow'
         })
         
         # Save both dataframes to different sheets in the same Excel file
-        timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
-        excel_filename = f'simulation_results_{timestamp}.xlsx'
+        excel_filename = os.path.join(folder_name, f'simulation_results.xlsx')
         
         # Use ExcelWriter to save multiple sheets to the same file
         with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
@@ -607,17 +633,26 @@ class SimulationGUI:
         print(f"  - Sheet 1: Detailed Results")
         print(f"  - Sheet 2: Summary Results")
         
-        # Display summary results in a new figure
-        self.display_simulation_results(df_summary)
+        # Pass the folder name to the display function
+        self.display_simulation_results(df_summary, folder_name)
 
-    def display_simulation_results(self, df_summary):
+    def display_simulation_results(self, df_summary, output_folder):
         """
-        Display the simulation results in a matplotlib figure
-        """
-        fig, ax = plt.subplots(figsize=(10, 6))
+        Display the simulation results in matplotlib figures showing:
+        1. Average Speed vs Number of Vehicles
+        2. Flow vs Density
         
-        # Plot the average speed vs number of vehicles
-        ax.errorbar(
+        All output files are saved to the specified output folder.
+        
+        Args:
+            df_summary: DataFrame containing summary statistics
+            output_folder: Path to the folder where output files should be saved
+        """
+        # Create a figure with two subplots
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
+        
+        # Plot 1: Average Speed vs Number of Vehicles
+        ax1.errorbar(
             df_summary['Number of Vehicles'], 
             df_summary['Average Speed'],
             yerr=df_summary['Standard Deviation of Average Speed'],
@@ -628,7 +663,7 @@ class SimulationGUI:
         )
         
         # Add min/max as a shaded area
-        ax.fill_between(
+        ax1.fill_between(
             df_summary['Number of Vehicles'],
             df_summary['Minimum Average Speed'],
             df_summary['Maximum Average Speed'],
@@ -637,15 +672,141 @@ class SimulationGUI:
             label='Min-Max Range'
         )
         
-        # Add labels and legend
-        ax.set_xlabel('Number of Vehicles')
-        ax.set_ylabel('Average Speed (m/s)')
-        ax.set_title(f'Simulation Results: Impact of Vehicle Count on Average Speed\n'
+        # Add labels and legend for the first plot
+        ax1.set_xlabel('Number of Vehicles')
+        ax1.set_ylabel('Average Speed (m/s)')
+        ax1.set_title('Impact of Vehicle Count on Average Speed')
+        ax1.grid(True)
+        ax1.legend()
+        
+        # Plot 2: Flow vs Density (Fundamental Diagram)
+        ax2.errorbar(
+            df_summary['Density'], 
+            df_summary['Average Flow'],
+            yerr=df_summary['Standard Deviation of Flow'],
+            fmt='o-', 
+            ecolor='green',
+            capsize=5,
+            label='Flow with Std Dev'
+        )
+        
+        # Add min/max as a shaded area
+        ax2.fill_between(
+            df_summary['Density'],
+            df_summary['Minimum Flow'],
+            df_summary['Maximum Flow'],
+            alpha=0.2,
+            color='purple',
+            label='Min-Max Range'
+        )
+        
+        # Add labels and legend for the second plot
+        ax2.set_xlabel('Density (vehicles/m)')
+        ax2.set_ylabel('Flow (vehicles/s)')
+        ax2.set_title('Fundamental Diagram: Flow vs Density')
+        ax2.grid(True)
+        ax2.legend()
+        
+        # Add a common title for both plots
+        fig.suptitle(f'Traffic Simulation Results\n'
                     f'({self.num_simulations} simulations per vehicle count, '
                     f'{self.params["lanes_count"]} lanes, '
-                    f'{self.params["distracted_percentage"]}% distracted drivers)')
-        ax.grid(True)
-        ax.legend()
+                    f'{self.params["distracted_percentage"]}% distracted drivers)',
+                    fontsize=16)
         
         plt.tight_layout()
+        plt.subplots_adjust(top=0.85)  # Adjust to make room for the suptitle
+        
+        # Save the combined figure
+        combined_fig_path = os.path.join(output_folder, 'combined_plots.png')
+        plt.savefig(combined_fig_path, dpi=300, bbox_inches='tight')
+        print(f"Combined plots saved to: {combined_fig_path}")
+        
+        # Create and save individual plots as well
+        
+        # 1. Speed vs Vehicles plot
+        fig_speed, ax_speed = plt.subplots(figsize=(10, 6))
+        ax_speed.errorbar(
+            df_summary['Number of Vehicles'], 
+            df_summary['Average Speed'],
+            yerr=df_summary['Standard Deviation of Average Speed'],
+            fmt='o-', 
+            ecolor='red',
+            capsize=5,
+            label='Average Speed with Std Dev'
+        )
+        ax_speed.fill_between(
+            df_summary['Number of Vehicles'],
+            df_summary['Minimum Average Speed'],
+            df_summary['Maximum Average Speed'],
+            alpha=0.2,
+            color='blue',
+            label='Min-Max Range'
+        )
+        ax_speed.set_xlabel('Number of Vehicles')
+        ax_speed.set_ylabel('Average Speed (m/s)')
+        ax_speed.set_title('Impact of Vehicle Count on Average Speed')
+        ax_speed.grid(True)
+        ax_speed.legend()
+        speed_fig_path = os.path.join(output_folder, 'speed_vs_vehicles.png')
+        fig_speed.savefig(speed_fig_path, dpi=300, bbox_inches='tight')
+        print(f"Speed vs vehicles plot saved to: {speed_fig_path}")
+        plt.close(fig_speed)
+        
+        # 2. Flow vs Density plot
+        fig_flow, ax_flow = plt.subplots(figsize=(10, 6))
+        ax_flow.errorbar(
+            df_summary['Density'], 
+            df_summary['Average Flow'],
+            yerr=df_summary['Standard Deviation of Flow'],
+            fmt='o-', 
+            ecolor='green',
+            capsize=5,
+            label='Flow with Std Dev'
+        )
+        ax_flow.fill_between(
+            df_summary['Density'],
+            df_summary['Minimum Flow'],
+            df_summary['Maximum Flow'],
+            alpha=0.2,
+            color='purple',
+            label='Min-Max Range'
+        )
+        ax_flow.set_xlabel('Density (vehicles/m)')
+        ax_flow.set_ylabel('Flow (vehicles/s)')
+        ax_flow.set_title('Fundamental Diagram: Flow vs Density')
+        ax_flow.grid(True)
+        ax_flow.legend()
+        flow_fig_path = os.path.join(output_folder, 'flow_vs_density.png')
+        fig_flow.savefig(flow_fig_path, dpi=300, bbox_inches='tight')
+        print(f"Flow vs density plot saved to: {flow_fig_path}")
+        plt.close(fig_flow)
+        
+        # Also save the data as CSV for potential further analysis
+        csv_path = os.path.join(output_folder, 'summary_data.csv')
+        df_summary.to_csv(csv_path, index=False)
+        print(f"Summary data CSV saved to: {csv_path}")
+        
+        # Create a simple README file with simulation parameters
+        readme_path = os.path.join(output_folder, 'README.txt')
+        with open(readme_path, 'w') as f:
+            f.write(f"Traffic Simulation Results\n")
+            f.write(f"========================\n\n")
+            f.write(f"Date and Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(f"Simulation Parameters:\n")
+            f.write(f"  - Number of simulations per configuration: {self.num_simulations}\n")
+            f.write(f"  - Road length: {self.params['road_length']} meters\n")
+            f.write(f"  - Number of lanes: {self.params['lanes_count']}\n")
+            f.write(f"  - Vehicle counts tested: {', '.join(map(str, self.num_vehicles_array))}\n")
+            f.write(f"  - Percentage of distracted drivers: {self.params['distracted_percentage']}%\n")
+            f.write(f"  - Simulation time step: {self.params['dt']} seconds\n\n")
+            f.write(f"Files in this folder:\n")
+            f.write(f"  - combined_plots.png: Combined visualization of both key metrics\n")
+            f.write(f"  - speed_vs_vehicles.png: Plot of average speed vs number of vehicles\n")
+            f.write(f"  - flow_vs_density.png: Plot of traffic flow vs traffic density\n")
+            f.write(f"  - simulation_results.xlsx: Detailed simulation results with two sheets\n")
+            f.write(f"  - summary_data.csv: CSV version of the summary results\n")
+        print(f"README file created at: {readme_path}")
+        
+        # Show the combined plot
         plt.show()

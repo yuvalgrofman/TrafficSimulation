@@ -78,13 +78,13 @@ class TrafficSimulation:
                 if not overlap:
                     break
             
-            # Random desired velocity (m/s) - between 20 and 40 m/s (72-144 km/h)
-            desired_velocity = random.uniform(20, 35)
+            # Random desired velocity (m/s) - between 20 and 40 m/s (72-126 km/h)
+            desired_velocity = random.uniform(25, 35)
             
             # Assign driver type with different probabilities
             driver_type = random.choices(
                 list(DriverType),
-                weights=[0.15, 0.4, 0.15, 0.15, 0.15, 0.00]  # 15% aggressive, 40% normal, etc.
+                weights=[0.5, 0.5, 0, 0, 0, 0]  # 15% aggressive, 40% normal, etc.
             )[0]
             
             # Set visualization dimensions
