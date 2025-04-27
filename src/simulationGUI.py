@@ -16,19 +16,19 @@ from tkinter import Tk, filedialog
 class SimulationGUI:
     def __init__(self):
         self.params = {
-            'road_length': 1000,
-            'lanes_count': 1,
+            'road_length': 500,
+            'lanes_count': 2,
             'n_vehicles': 30,
             'dt': 0.5,
             'simulation_time': 120,
             'animation_interval': 50,
             'distracted_percentage': 0,  # Adding default percentage of distracted drivers
             'driver_type_distribution': {  # Add default driver type distribution
-                DriverType.AGGRESSIVE: 0.1,
-                DriverType.NORMAL: 0.6,
-                DriverType.CAUTIOUS: 0.2,
-                DriverType.POLITE: 0.05,
-                DriverType.SUBMISSIVE: 0.05
+                DriverType.AGGRESSIVE: 1,
+                DriverType.NORMAL: 0,
+                DriverType.CAUTIOUS: 0.0,
+                DriverType.POLITE: 0.0,
+                DriverType.SUBMISSIVE: 0.0
             }
         }
         self.simulation = None
@@ -50,7 +50,7 @@ class SimulationGUI:
         self.save_animation = False
         
         # Multiple simulations parameters
-        self.num_simulations = 8  # Default number of simulations to run
+        self.num_simulations = 20  # Default number of simulations to run
         self.num_vehicles_array = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]  # Default array of vehicle counts
         self.num_vehicles_array.reverse()  # Reverse the order for better visualization
 
@@ -614,7 +614,7 @@ class SimulationGUI:
         
         # Create a dedicated folder for this simulation run
         timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
-        folder_name = f'results/simulation_run_{timestamp}'
+        folder_name = f'results/2L/NA/simulation_run_{timestamp}'
         os.makedirs(folder_name, exist_ok=True)
         print(f"Creating output folder: {folder_name}")
         
