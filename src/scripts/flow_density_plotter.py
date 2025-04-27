@@ -129,12 +129,13 @@ def analyze_excel_files(folder_path, partition_type="distraction"):
     return results
 
 
-def create_visualization(results, partition_type="distraction"):
+def create_visualization(results, folder_path, partition_type="distraction"):
     """
     Create a visualization of flow vs density with error bars and splines.
     
     Args:
         results (dict): Analysis results from analyze_excel_files
+        folder_path (str): Path to the folder where the output image will be saved
         partition_type (str): Type of partition used ('distraction' or 'distribution')
     """
     plt.figure(figsize=(12, 8))
@@ -206,9 +207,11 @@ def create_visualization(results, partition_type="distraction"):
     plt.grid(True, alpha=0.3)
     plt.legend()
     
-    # Save the figure
+    # Save the figure in the input folder path
+    output_path = os.path.join(folder_path, f'flow_vs_density_{partition_type}.png')
     plt.tight_layout()
-    plt.savefig(f'flow_vs_density_{partition_type}.png', dpi=300)
+    plt.savefig(output_path, dpi=300)
+    print(f"Image saved to: {output_path}")
     plt.show()
 
 
@@ -218,6 +221,7 @@ def main():
     parser.add_argument('folder_path', type=str, help='Path to folder containing Excel files')
     parser.add_argument('--partition', type=str, choices=['distraction', 'distribution'], 
                         default='distraction', help='Type of partition to use')
+    parser.add_argument('--output', type=str, help='Custom output filename (optional)')
     
     # Parse arguments
     args = parser.parse_args()
@@ -227,8 +231,9 @@ def main():
     
     # Create visualization
     if results:
-        create_visualization(results, args.partition)
-        print(f"Analysis complete. Results saved as flow_vs_density_{args.partition}.png")
+        # Pass the folder path to create_visualization function
+        create_visualization(results, args.folder_path, args.partition)
+        print("Analysis complete.")
     else:
         print("No valid data found for analysis.")
 

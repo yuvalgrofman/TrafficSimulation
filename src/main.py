@@ -65,6 +65,9 @@ def add_command_line_features(SimulationGUI):
         
         # Flag to save animation
         self.parser.add_argument('--save-animation', action='store_true', help='Save the animation to a file')
+
+        # Flag to set path
+        self.parser.add_argument('--output-dir', type=str, help='Path and name of the directory to save simulation results')
         
         # Flag to indicate command line mode is active
         self.command_line_mode = False
@@ -81,6 +84,9 @@ def add_command_line_features(SimulationGUI):
             return  # Not enough arguments, continue with GUI mode
         
         # Update basic parameters if provided
+        if args.output_dir is not None:
+            self.params['output_dir'] = args.output_dir
+
         if args.road_length is not None:
             self.params['road_length'] = args.road_length
         

@@ -16,6 +16,7 @@ from tkinter import Tk, filedialog
 class SimulationGUI:
     def __init__(self):
         self.params = {
+            'output_dir': None,
             'road_length': 500,
             'lanes_count': 2,
             'n_vehicles': 30,
@@ -615,6 +616,9 @@ class SimulationGUI:
         # Create a dedicated folder for this simulation run
         timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
         folder_name = f'results/2L/NA/simulation_run_{timestamp}'
+        if self.params['output_dir']:
+            folder_name = self.params['output_dir']
+        os.makedirs(folder_name, exist_ok=True)
         os.makedirs(folder_name, exist_ok=True)
         print(f"Creating output folder: {folder_name}")
         
@@ -623,7 +627,7 @@ class SimulationGUI:
         
         # Set up results storage
         all_results = []
-        steps_per_simulation = 1000  # Fixed at 1000 steps per simulation
+        steps_per_simulation = 500  # Fixed at 1000 steps per simulation
         
         # Run simulations for each vehicle count
         for vehicle_count in self.num_vehicles_array:
@@ -912,4 +916,4 @@ class SimulationGUI:
         print(f"README file created at: {readme_path}")
         
         # Show the combined plot
-        plt.show()
+        # plt.show()
