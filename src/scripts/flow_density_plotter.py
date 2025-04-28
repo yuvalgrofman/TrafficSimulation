@@ -6,6 +6,37 @@ from scipy.interpolate import interp1d
 import argparse
 
 
+def create_distribution_key(row):
+    """
+    Create a unique key for each distribution based on percentage columns.
+    
+    Args:
+        row (pandas.Series): Row containing percentage columns
+        
+    Returns:
+        str: Unique distribution key
+    """
+    # Check if the percentage columns exist
+    percentage_columns = [
+        "Aggressive %", "Normal %", "Cautious %", "Polite %", "Submissive %"
+    ]
+    
+    # If any of these columns don't exist, return a default value
+    if not all(col in row.index for col in percentage_columns):
+        return "Unknown"
+    
+    # Create a string representation of the distribution
+    distribution_values = [
+        f"A:{row['Aggressive %']:.2f}",
+        f"N:{row['Normal %']:.2f}",
+        f"C:{row['Cautious %']:.2f}",
+        f"P:{row['Polite %']:.2f}",
+        f"S:{row['Submissive %']:.2f}"
+    ]
+    
+    return " ".join(distribution_values)
+
+
 def analyze_excel_files(folder_path, partition_type="distraction"):
     """
     Analyze all Excel files in the given folder and subfolders.
@@ -37,9 +68,13 @@ def analyze_excel_files(folder_path, partition_type="distraction"):
                         # If not available, read the first sheet
                         df = pd.read_excel(workbook, sheet_name=0)
                     
+                    # For distribution partition type, create a distribution key if needed
+                    if partition_type == "distribution":
+                        print("Creating Distribution Key based on percentage columns")
+                        df["Distribution Key"] = df.apply(create_distribution_key, axis=1)
+                    
                     # Check if required columns exist
-                    required_columns = ["Density", "Flow", "Average Flow", "Standard Deviation of Flow", 
-                                        "Percentage of Distracted Vehicles"]
+                    required_columns = ["Density", "Flow", "Average Flow", "Standard Deviation of Flow"]
                     
                     # Handle different possible column names
                     if "Average Flow" in df.columns:
@@ -51,11 +86,17 @@ def analyze_excel_files(folder_path, partition_type="distraction"):
                     
                     # For sheets with detailed results, we'll need to calculate statistics
                     if flow_std_col is None:
-                        # Group by density and distraction percentage
+                        # Group by density and partition column
                         if partition_type == "distraction":
+                            if "Percentage of Distracted Vehicles" not in df.columns:
+                                print(f"Warning: 'Percentage of Distracted Vehicles' column not found in {file_path}")
+                                continue
                             grouped = df.groupby(["Density", "Percentage of Distracted Vehicles"])
                         else:  # distribution
-                            grouped = df.groupby(["Density", "Distribution Type"])  # Adjust as needed
+                            if "Distribution Key" not in df.columns:
+                                print(f"Warning: 'Distribution Key' column not found in {file_path}")
+                                continue
+                            grouped = df.groupby(["Density", "Distribution Key"])
                         
                         # Calculate average and standard deviation for each group
                         agg_results = grouped.agg({
@@ -78,7 +119,7 @@ def analyze_excel_files(folder_path, partition_type="distraction"):
                             }, inplace=True)
                         else:  # distribution
                             agg_results.rename(columns={
-                                "Distribution Type_": "Distribution Type"
+                                "Distribution Key_": "Distribution Key"
                             }, inplace=True)
                         
                         df = agg_results
@@ -90,7 +131,12 @@ def analyze_excel_files(folder_path, partition_type="distraction"):
                     if partition_type == "distraction":
                         partition_col = "Percentage of Distracted Vehicles"
                     else:  # distribution
-                        partition_col = "Distribution Type"
+                        partition_col = "Distribution Key"
+                    
+                    # Skip if partition column is missing
+                    if partition_col not in df.columns:
+                        print(f"Warning: '{partition_col}' column not found in processed dataframe from {file_path}")
+                        continue
                     
                     # Extract unique partition values
                     for partition_value in df[partition_col].unique():
@@ -138,19 +184,33 @@ def create_visualization(results, folder_path, partition_type="distraction"):
         folder_path (str): Path to the folder where the output image will be saved
         partition_type (str): Type of partition used ('distraction' or 'distribution')
     """
-    plt.figure(figsize=(12, 8))
-    
-    # Sort partition keys by value and convert to numeric if possible
+    plt.figure(figsize=(14, 8))
+
+    # Sort partition keys - for distraction, sort numerically if possible
     partition_keys = list(results.keys())
-    try:
-        # Try to convert keys to numeric for proper sorting
-        partition_keys.sort(key=float)
-    except:
-        # Fall back to regular sorting if conversion fails
+    if partition_type == "distraction":
+        try:
+            partition_keys.sort(key=float)
+        except:
+            partition_keys.sort()
+    else:
         partition_keys.sort()
-    
+
+    # Check if there are too many distributions for a single graph
+    if len(partition_keys) > 10 and partition_type == "distribution":
+        print(f"Warning: {len(partition_keys)} different distributions found. " 
+              f"Graph might be cluttered. Consider grouping similar distributions.")
+
     # Define color map for different partition values
     colors = plt.cm.viridis(np.linspace(0, 1, len(results)))
+
+    # Plot each partition value with a different color in sorted order
+    for i, partition_key in enumerate(partition_keys):
+        data = results[partition_key]
+        color = colors[i]
+        all_densities = np.concatenate(data["densities"])
+        all_flows = np.concatenate(data["flows"])
+        all_flow_stds = np.concatenate(data["flow_stds"])
     
     # Plot each partition value with a different color in sorted order
     for i, partition_key in enumerate(partition_keys):
@@ -184,6 +244,19 @@ def create_visualization(results, folder_path, partition_type="distraction"):
             
             flow_std_errs.append(flow_std_err)
         
+        # Create a label - for distribution type, create a shorter label if needed
+        # Format label with integer percentages
+        if partition_type == "distraction":
+            # Convert "5.0" to "5%"
+            label = f"{int(float(partition_key))}%"
+        else:
+            # Convert "A:20.00 N:30.00..." to "A:20% N:30%..."
+            label_parts = []
+            for part in partition_key.split():
+                key, val = part.split(':')
+                label_parts.append(f"{key}:{int(float(val))}%")
+            label = " ".join(label_parts)
+        
         # Create a linear spline interpolation between points
         if len(unique_densities) > 1:
             spline = interp1d(unique_densities, avg_flows, kind='linear')
@@ -191,11 +264,10 @@ def create_visualization(results, folder_path, partition_type="distraction"):
             y_dense = spline(x_dense)
             
             # Plot spline
-            plt.plot(x_dense, y_dense, color=color, label=f"{partition_type.capitalize()} = {partition_key}%")
+            plt.plot(x_dense, y_dense, color=color, label=label)
         else:
             # If there's only one point, we can't create a spline
-            plt.plot(unique_densities, avg_flows, 'o-', color=color, 
-                    label=f"{partition_type.capitalize()} = {partition_key}%")
+            plt.plot(unique_densities, avg_flows, 'o-', color=color, label=label)
         
         # Plot error bars
         plt.errorbar(unique_densities, avg_flows, yerr=flow_std_errs, fmt='o', color=color, capsize=5)
@@ -203,14 +275,31 @@ def create_visualization(results, folder_path, partition_type="distraction"):
     # Set labels and title
     plt.xlabel('Density (cars/km/lane)')
     plt.ylabel('Flow (cars/hour)')
-    plt.title('Flow vs Density by ' + partition_type.capitalize() + " Percentage")
+    
+    # Set appropriate title based on partition type
+    if partition_type == "distraction":
+        plt.title('Flow vs Density by Distraction Percentage')
+    else:  # distribution
+        plt.title('Flow vs Density by Driver Distribution')
+    
     plt.grid(True, alpha=0.3)
-    plt.legend()
+    
+    # Add legend with better placement if there are many items
+    if len(partition_keys) > 5:
+        plt.legend(bbox_to_anchor=(1.01, 1), 
+                 loc='upper left',
+                 borderaxespad=0.,
+                 fontsize=9)  # Reduced font size
+    else:
+        plt.legend(fontsize=9)  # Slightly larger but still reduced
+
+    # Adjust subplot margins to accommodate external legend
+    plt.subplots_adjust(right=0.7)
     
     # Save the figure in the input folder path
     output_path = os.path.join(folder_path, f'flow_vs_density_{partition_type}.png')
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Image saved to: {output_path}")
     plt.show()
 

@@ -17,19 +17,19 @@ class SimulationGUI:
     def __init__(self):
         self.params = {
             'output_dir': None,
-            'road_length': 500,
-            'lanes_count': 2,
-            'n_vehicles': 30,
+            'road_length': 2000,
+            'lanes_count': 5,
+            'n_vehicles': 10,
             'dt': 0.5,
             'simulation_time': 120,
             'animation_interval': 50,
             'distracted_percentage': 0,  # Adding default percentage of distracted drivers
             'driver_type_distribution': {  # Add default driver type distribution
-                DriverType.AGGRESSIVE: 1,
-                DriverType.NORMAL: 0,
-                DriverType.CAUTIOUS: 0.0,
-                DriverType.POLITE: 0.0,
-                DriverType.SUBMISSIVE: 0.0
+                DriverType.AGGRESSIVE: 0.3,
+                DriverType.NORMAL: 0.3,
+                DriverType.CAUTIOUS: 0.2,
+                DriverType.POLITE: 0.1,
+                DriverType.SUBMISSIVE: 0.1
             }
         }
         self.simulation = None
@@ -681,13 +681,13 @@ class SimulationGUI:
         df_summary = df_detailed.groupby(['Number of Vehicles', 'Number of Lanes', 'Road Length', 
                                         'Percentage of Distracted Vehicles']).agg(
             Average_Speed=('Average Speed', 'mean'),
-            Variance=('Average Speed', 'var'),
-            Std_Dev=('Average Speed', 'std'),
+            Variance=('Average Speed', lambda x: x.var(ddof=0)),  # Population variance (÷ n)
+            Std_Dev=('Average Speed', lambda x: x.std(ddof=0)),   # Population std dev (÷ n)
             Min_Speed=('Average Speed', 'min'),
             Max_Speed=('Average Speed', 'max'),
             Density=('Density', 'first'),
             Average_Flow=('Flow', 'mean'),
-            Flow_Std_Dev=('Flow', 'std'),
+            Flow_Std_Dev=('Flow', lambda x: x.std(ddof=0)),      # Flow std dev also needs adjustment
             Min_Flow=('Flow', 'min'),
             Max_Flow=('Flow', 'max'),
             Simulation_Time=('Simulation Time (s)', 'first'),

@@ -346,7 +346,7 @@ class TrafficSimulation:
 
         # Set up the speed plot
         ax2.set_xlim(0, self.simulation_time)
-        ax2.set_ylim(0, 100)  # Assuming max speed around 40 m/s
+        ax2.set_ylim(0, 130)  # Assuming max speed around 40 m/s
         ax2.set_xlabel('Time (s)')
         ax2.set_ylabel('Avg. Speed (km/h)')
         ax2.set_title('Average Traffic Speed')
