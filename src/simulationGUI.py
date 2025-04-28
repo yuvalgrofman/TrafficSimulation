@@ -627,7 +627,7 @@ class SimulationGUI:
         
         # Set up results storage
         all_results = []
-        steps_per_simulation = 500  # Fixed at 1000 steps per simulation
+        steps_per_simulation = 800  # Fixed at 1000 steps per simulation
         
         # Run simulations for each vehicle count
         for vehicle_count in self.num_vehicles_array:
