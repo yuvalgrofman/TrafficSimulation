@@ -3,13 +3,13 @@
 # Base parameters
 ROAD_LENGTH=500
 LANES=2
-NUM_SIMULATIONS=30
-VEHICLE_COUNTS="5,10,15,20,25,30,35,40,45,50,55,60,65,70"
+NUM_SIMULATIONS=50
+VEHICLE_COUNTS="5,10,15,20,25,30,35,40,45"
 DRIVER_DIST="0,1,0,0,0"
 SIM_TIME=150  # Using the default value from the example
 
 # Create parent output directory if it doesn't exist
-BASE_OUTPUT_DIR="simulation_results/2L_precise/2L_normal_distracted_upto_20"
+BASE_OUTPUT_DIR="simulation_results/2L_v3/normal_distracted"
 mkdir -p "$BASE_OUTPUT_DIR"
 
 # Loop through distracted percentages from 0 to 100 in increments of 10
