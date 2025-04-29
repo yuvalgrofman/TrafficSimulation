@@ -1,7 +1,7 @@
 Traffic Simulation Results
 ========================
 
-Date and Time: 2025-04-29 09:53:37
+Date and Time: 2025-04-29 10:22:16
 
 Simulation Parameters:
   - Number of simulations per configuration: 30
@@ -11,7 +11,7 @@ Simulation Parameters:
   - Time step (dt): 0.5 seconds
   - Animation interval: 50 ms
   - Vehicle counts tested: 100, 95, 90, 95, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5
-  - Percentage of distracted drivers: 0.0%
+  - Percentage of distracted drivers: 15.0%
   - Driver type distribution:
     * Aggressive: 0.0%
     * Normal: 100.0%

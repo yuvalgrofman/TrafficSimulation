@@ -1,19 +1,20 @@
 #!/bin/bash
 
 # Base parameters
-ROAD_LENGTH=1000
-LANES=1
-NUM_SIMULATIONS=15
-VEHICLE_COUNTS="5,10,15,20,25,30,35,40,45,50,55,60"
-DRIVER_DIST="0.5,0.5,0,0,0"
-SIM_TIME=150  # Using the default value from the example
+ROAD_LENGTH=500
+LANES=2
+NUM_SIMULATIONS=30
+VEHICLE_COUNTS="100,95,90,95,80,75,70,65,60,55,50,45,40,35,30,25,20,15,10,5"
+# VEHICLE_COUNTS="20,15,10,5"
+DRIVER_DIST="0,1,0,0,0"
+SIM_TIME=120  # Using the default value from the example
 
 # Create parent output directory if it doesn't exist
-BASE_OUTPUT_DIR="simulation_results/normal_aggressive_distracted"
+BASE_OUTPUT_DIR="simulation_results/2L_v3/normal_distracted"
 mkdir -p "$BASE_OUTPUT_DIR"
 
 # Loop through distracted percentages from 0 to 100 in increments of 10
-for DISTRACTED_PERCENTAGE in $(seq 0 10 50); do
+for DISTRACTED_PERCENTAGE in $(seq 0 5 50); do
     echo "Running simulation with distracted percentage: $DISTRACTED_PERCENTAGE%"
     
     # Create output directory for this distracted percentage
