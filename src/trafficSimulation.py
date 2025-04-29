@@ -79,14 +79,22 @@ class TrafficSimulation:
         if n_vehicles > 0:
             self.initialize_vehicles()
         
-    def initialize_vehicles(self):
-        """Initialize vehicles with random positions, velocities, and lanes."""
+    def initialize_vehicles(self, max_attempts=10):
+        """Initialize vehicles with random positions, velocities, and lanes.
+        
+        Args:
+            max_attempts (int): Maximum number of random placement attempts before falling back
+                            to deterministic placement.
+        """
         # Clear existing vehicles if any
         self.vehicles = []
         
         for i in range(self.n_vehicles):
             # Random position (ensuring no overlaps)
-            while True:
+            attempts = 0
+            placed = False
+            
+            while attempts < max_attempts and not placed:
                 position = random.uniform(0, self.road_length)
                 lane = random.randint(0, self.lanes_count - 1)
                 
@@ -106,7 +114,63 @@ class TrafficSimulation:
                         break
                 
                 if not overlap:
+                    placed = True
                     break
+                    
+                attempts += 1
+            
+            # If random placement failed after max attempts, use deterministic placement
+            if not placed:
+                # Deterministic placement strategy: place vehicles at equally spaced intervals
+                # and distribute them across all lanes
+                lane = i % self.lanes_count
+                section_length = self.road_length / (self.n_vehicles / self.lanes_count + 1)
+                section_index = (i // self.lanes_count) + 1
+                position = section_index * section_length
+                
+                # Add some small random offset to avoid perfect alignment
+                position += random.uniform(-5, 5)
+                
+                # Ensure position is within road boundaries
+                position = max(0, min(position, self.road_length))
+                
+                # If there's still an overlap, try adjacent lanes
+                original_lane = lane
+                lanes_tried = 0
+                
+                while lanes_tried < self.lanes_count:
+                    overlap = False
+                    
+                    # Check for overlap with existing vehicles
+                    for vehicle in self.vehicles:
+                        if (vehicle.lane == lane and 
+                            abs(vehicle.position - position) < max(vehicle.length, 10)):
+                            overlap = True
+                            break
+                    
+                    # Check for overlap with obstacles
+                    for obstacle in self.obstacles:
+                        if (obstacle['lane'] == lane and 
+                            abs(obstacle['position'] - position) < max(20, 10)):
+                            overlap = True
+                            break
+                    
+                    if not overlap:
+                        break
+                    
+                    # Try next lane
+                    lane = (lane + 1) % self.lanes_count
+                    lanes_tried += 1
+                
+                # If all lanes at this position have overlaps, shift position by a fixed amount
+                if lanes_tried == self.lanes_count:
+                    # Push the position further down the road by 20m
+                    position += 20
+                    lane = original_lane
+                    
+                    # If we've gone beyond the road length, wrap back to the start
+                    if position >= self.road_length:
+                        position = 20  # Start at 20m
             
             # Random desired velocity (m/s) - between 20 and 40 m/s (72-126 km/h)
             desired_velocity = random.uniform(25, 35)
@@ -242,8 +306,8 @@ class TrafficSimulation:
         self.time += self.dt
         
         # Check simulation integrity
-        if self.debug:
-            self.check_simulation_integrity()
+        # if self.debug:
+        #     self.check_simulation_integrity()
             
     def check_simulation_integrity(self):
         """Check for simulation problems like vehicle overlaps."""

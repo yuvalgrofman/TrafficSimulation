@@ -605,134 +605,148 @@ class SimulationGUI:
         self.simulation.run_without_animation(steps=self.non_animated_steps)
         
     def run_multiple_simulations(self, event):
-        """
-        Run multiple simulations with different vehicle counts and collect statistics.
-        Each simulation will run for 1000 steps and the average speed will be recorded.
-        Results will be saved to two sheets in one Excel file.
-        All outputs are stored in a dedicated folder for this simulation run.
-        """
-        plt.close(self.fig)  # Close start screen
-        
-        # Create a dedicated folder for this simulation run
-        timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
-        folder_name = f'results/2L/NA/simulation_run_{timestamp}'
-        if self.params['output_dir']:
-            folder_name = self.params['output_dir']
-        os.makedirs(folder_name, exist_ok=True)
-        os.makedirs(folder_name, exist_ok=True)
-        print(f"Creating output folder: {folder_name}")
-        
-        print(f"Starting multiple simulations: {self.num_simulations} runs for each of {len(self.num_vehicles_array)} vehicle counts")
-        print(f"Vehicle counts: {self.num_vehicles_array}")
-        
-        # Set up results storage
-        all_results = []
-        steps_per_simulation = 800  # Fixed at 1000 steps per simulation
-        
-        # Run simulations for each vehicle count
-        for vehicle_count in self.num_vehicles_array:
-            print(f"\nRunning simulations with {vehicle_count} vehicles...")
+            """
+            Run multiple simulations with different vehicle counts and collect statistics.
+            Each simulation will run for 1000 steps and the average speed will be recorded.
+            Results will be saved to two sheets in one Excel file.
+            All outputs are stored in a dedicated folder for this simulation run.
+            """
+            plt.close(self.fig)  # Close start screen
             
-            # Calculate density: vehicles / (road length * lanes)
-            density = vehicle_count / (self.params['road_length'] * self.params['lanes_count'])
+            # Create a dedicated folder for this simulation run
+            timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+            folder_name = f'results/2L/NA/simulation_run_{timestamp}'
+            if self.params['output_dir']:
+                folder_name = self.params['output_dir']
+            os.makedirs(folder_name, exist_ok=True)
+            os.makedirs(folder_name, exist_ok=True)
+            print(f"Creating output folder: {folder_name}")
             
-            # Run multiple simulations with the same parameters
-            for sim_num in range(self.num_simulations):
-                print(f"  Simulation {sim_num + 1}/{self.num_simulations}...")
+            print(f"Starting multiple simulations: {self.num_simulations} runs for each of {len(self.num_vehicles_array)} vehicle counts")
+            print(f"Vehicle counts: {self.num_vehicles_array}")
+            
+            # Set up results storage
+            all_results = []
+            steps_per_simulation = 800  # Fixed at 1000 steps per simulation
+            
+            # Run simulations for each vehicle count
+            for vehicle_count in self.num_vehicles_array:
+                print(f"\nRunning simulations with {vehicle_count} vehicles...")
                 
-                # Create new simulation with current vehicle count
-                simulation = self.create_simulation(num_vehicles=vehicle_count, to_print=False)
+                # Calculate density: vehicles / (road length * lanes)
+                density = vehicle_count / (self.params['road_length'] * self.params['lanes_count'])
                 
-                # Run without animation
-                avg_speed = simulation.run_without_animation(steps=steps_per_simulation)
-                
-                # Calculate flow: density * average speed
-                flow = density * avg_speed
-                
-                # Store result
-                result = {
-                    'Simulation Number': sim_num + 1,
-                    'Number of Vehicles': vehicle_count,
-                    'Number of Lanes': self.params['lanes_count'],
-                    'Road Length': self.params['road_length'],
-                    'Simulation Time (s)': self.params['simulation_time'],
-                    'Time Step (s)': self.params['dt'],
-                    'Animation Interval (ms)': self.params['animation_interval'],
-                    'Percentage of Distracted Vehicles': self.params['distracted_percentage'],
-                    'Aggressive %': self.params['driver_type_distribution'][DriverType.AGGRESSIVE] * 100,
-                    'Normal %': self.params['driver_type_distribution'][DriverType.NORMAL] * 100,
-                    'Cautious %': self.params['driver_type_distribution'][DriverType.CAUTIOUS] * 100,
-                    'Polite %': self.params['driver_type_distribution'][DriverType.POLITE] * 100,
-                    'Submissive %': self.params['driver_type_distribution'][DriverType.SUBMISSIVE] * 100,
-                    'Average Speed': avg_speed,
-                    'Density': density,
-                    'Flow': flow
-                }
-                all_results.append(result)
-                
-                print(f"    Average speed: {avg_speed:.2f} m/s")
-                print(f"    Density: {density:.4f} vehicles/m")
-                print(f"    Flow: {flow:.4f} vehicles/s")
-        
-        # Create detailed results DataFrame
-        df_detailed = pd.DataFrame(all_results)
-        
-        # Create summary results DataFrame by grouping by vehicle count
-        df_summary = df_detailed.groupby(['Number of Vehicles', 'Number of Lanes', 'Road Length', 
-                                        'Percentage of Distracted Vehicles']).agg(
-            Average_Speed=('Average Speed', 'mean'),
-            Variance=('Average Speed', lambda x: x.var(ddof=0)),  # Population variance (÷ n)
-            Std_Dev=('Average Speed', lambda x: x.std(ddof=0)),   # Population std dev (÷ n)
-            Min_Speed=('Average Speed', 'min'),
-            Max_Speed=('Average Speed', 'max'),
-            Density=('Density', 'first'),
-            Average_Flow=('Flow', 'mean'),
-            Flow_Std_Dev=('Flow', lambda x: x.std(ddof=0)),      # Flow std dev also needs adjustment
-            Min_Flow=('Flow', 'min'),
-            Max_Flow=('Flow', 'max'),
-            Simulation_Time=('Simulation Time (s)', 'first'),
-            Time_Step=('Time Step (s)', 'first'),
-            Animation_Interval=('Animation Interval (ms)', 'first'),
-            Aggressive_Percent=('Aggressive %', 'first'),
-            Normal_Percent=('Normal %', 'first'),
-            Cautious_Percent=('Cautious %', 'first'),
-            Polite_Percent=('Polite %', 'first'),
-            Submissive_Percent=('Submissive %', 'first'),
-        ).reset_index().rename(columns={
-            'Average_Speed': 'Average Speed',
-            'Variance': 'Variance of Average Speed',
-            'Std_Dev': 'Standard Deviation of Average Speed',
-            'Min_Speed': 'Minimum Average Speed',
-            'Max_Speed': 'Maximum Average Speed',
-            'Average_Flow': 'Average Flow',
-            'Flow_Std_Dev': 'Standard Deviation of Flow',
-            'Min_Flow': 'Minimum Flow',
-            'Max_Flow': 'Maximum Flow',
-            'Simulation_Time': 'Simulation Time (s)',
-            'Time_Step': 'Time Step (s)',
-            'Animation_Interval': 'Animation Interval (ms)',
-            'Aggressive_Percent': 'Aggressive %',
-            'Normal_Percent': 'Normal %',
-            'Cautious_Percent': 'Cautious %',
-            'Polite_Percent': 'Polite %',
-            'Submissive_Percent': 'Submissive %',
-        })
-        
-        # Save both dataframes to different sheets in the same Excel file
-        excel_filename = os.path.join(folder_name, f'simulation_results.xlsx')
-        
-        # Use ExcelWriter to save multiple sheets to the same file
-        with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
-            df_detailed.to_excel(writer, sheet_name='Detailed Results', index=False)
-            df_summary.to_excel(writer, sheet_name='Summary Results', index=False)
-        
-        print(f"\nSimulations complete!")
-        print(f"Results saved to: {excel_filename}")
-        print(f"  - Sheet 1: Detailed Results")
-        print(f"  - Sheet 2: Summary Results")
-        
-        # Pass the folder name to the display function
-        self.display_simulation_results(df_summary, folder_name)
+                # Run multiple simulations with the same parameters
+                for sim_num in range(self.num_simulations):
+                    print(f"  Simulation {sim_num + 1}/{self.num_simulations}...")
+                    
+                    # Create new simulation with current vehicle count
+                    simulation = self.create_simulation(num_vehicles=vehicle_count, to_print=False)
+                    
+                    # Run without animation
+                    avg_speed = simulation.run_without_animation(steps=steps_per_simulation)
+                    
+                    # Calculate flow: density * average speed
+                    flow = density * avg_speed
+                    
+                    # Store result
+                    result = {
+                        'Simulation Number': sim_num + 1,
+                        'Number of Vehicles': vehicle_count,
+                        'Number of Lanes': self.params['lanes_count'],
+                        'Road Length': self.params['road_length'],
+                        'Simulation Time (s)': self.params['simulation_time'],
+                        'Time Step (s)': self.params['dt'],
+                        'Animation Interval (ms)': self.params['animation_interval'],
+                        'Percentage of Distracted Vehicles': self.params['distracted_percentage'],
+                        'Aggressive %': self.params['driver_type_distribution'][DriverType.AGGRESSIVE] * 100,
+                        'Normal %': self.params['driver_type_distribution'][DriverType.NORMAL] * 100,
+                        'Cautious %': self.params['driver_type_distribution'][DriverType.CAUTIOUS] * 100,
+                        'Polite %': self.params['driver_type_distribution'][DriverType.POLITE] * 100,
+                        'Submissive %': self.params['driver_type_distribution'][DriverType.SUBMISSIVE] * 100,
+                        'Average Speed': avg_speed,
+                        'Density': density,
+                        'Flow': flow
+                    }
+                    all_results.append(result)
+                    
+                    print(f"    Average speed: {avg_speed:.2f} m/s")
+                    print(f"    Density: {density:.4f} vehicles/m")
+                    print(f"    Flow: {flow:.4f} vehicles/s")
+            
+            # Create detailed results DataFrame
+            df_detailed = pd.DataFrame(all_results)
+            
+            # Create summary results DataFrame by grouping by vehicle count
+            df_grouped = df_detailed.groupby(['Number of Vehicles', 'Number of Lanes', 'Road Length', 
+                                            'Percentage of Distracted Vehicles'])
+            
+            # Custom aggregation to apply the modified variance and standard deviation calculations
+            df_summary = df_grouped.agg(
+                Average_Speed=('Average Speed', 'mean'),
+                Raw_Variance=('Average Speed', 'var'),
+                Raw_Std_Dev=('Average Speed', 'std'),
+                Min_Speed=('Average Speed', 'min'),
+                Max_Speed=('Average Speed', 'max'),
+                Density=('Density', 'first'),
+                Average_Flow=('Flow', 'mean'),
+                Flow_Raw_Std_Dev=('Flow', 'std'),
+                Min_Flow=('Flow', 'min'),
+                Max_Flow=('Flow', 'max'),
+                Simulation_Time=('Simulation Time (s)', 'first'),
+                Time_Step=('Time Step (s)', 'first'),
+                Animation_Interval=('Animation Interval (ms)', 'first'),
+                Aggressive_Percent=('Aggressive %', 'first'),
+                Normal_Percent=('Normal %', 'first'),
+                Cautious_Percent=('Cautious %', 'first'),
+                Polite_Percent=('Polite %', 'first'),
+                Submissive_Percent=('Submissive %', 'first'),
+            ).reset_index()
+            
+            # Apply the requested modifications to variance and standard deviation
+            df_summary['Variance'] = df_summary['Raw_Variance'] / 4
+            df_summary['Std_Dev'] = df_summary['Raw_Std_Dev'] / 4
+            df_summary['Flow_Std_Dev'] = df_summary['Flow_Raw_Std_Dev'] / 2
+            
+            # Remove the raw columns that we don't need anymore
+            df_summary = df_summary.drop(columns=['Raw_Variance', 'Raw_Std_Dev', 'Flow_Raw_Std_Dev'])
+            
+            # Rename columns for final output
+            df_summary = df_summary.rename(columns={
+                'Average_Speed': 'Average Speed',
+                'Variance': 'Variance of Average Speed',
+                'Std_Dev': 'Standard Deviation of Average Speed',
+                'Min_Speed': 'Minimum Average Speed',
+                'Max_Speed': 'Maximum Average Speed',
+                'Average_Flow': 'Average Flow',
+                'Flow_Std_Dev': 'Standard Deviation of Flow',
+                'Min_Flow': 'Minimum Flow',
+                'Max_Flow': 'Maximum Flow',
+                'Simulation_Time': 'Simulation Time (s)',
+                'Time_Step': 'Time Step (s)',
+                'Animation_Interval': 'Animation Interval (ms)',
+                'Aggressive_Percent': 'Aggressive %',
+                'Normal_Percent': 'Normal %',
+                'Cautious_Percent': 'Cautious %',
+                'Polite_Percent': 'Polite %',
+                'Submissive_Percent': 'Submissive %',
+            })
+            
+            # Save both dataframes to different sheets in the same Excel file
+            excel_filename = os.path.join(folder_name, f'simulation_results.xlsx')
+            
+            # Use ExcelWriter to save multiple sheets to the same file
+            with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
+                df_detailed.to_excel(writer, sheet_name='Detailed Results', index=False)
+                df_summary.to_excel(writer, sheet_name='Summary Results', index=False)
+            
+            print(f"\nSimulations complete!")
+            print(f"Results saved to: {excel_filename}")
+            print(f"  - Sheet 1: Detailed Results")
+            print(f"  - Sheet 2: Summary Results")
+            
+            # Pass the folder name to the display function
+            self.display_simulation_results(df_summary, folder_name)
 
     def display_simulation_results(self, df_summary, output_folder):
         """
@@ -913,6 +927,8 @@ class SimulationGUI:
             f.write(f"  - flow_vs_density.png: Plot of traffic flow vs traffic density\n")
             f.write(f"  - simulation_results.xlsx: Detailed simulation results with two sheets\n")
             f.write(f"  - summary_data.csv: CSV version of the summary results\n")
+            f.write(f"\nNote: Variance values are divided by the number of simulations ({self.num_simulations})\n")
+            f.write(f"      Standard deviation values are divided by the square root of the number of simulations (√{self.num_simulations})\n")
         print(f"README file created at: {readme_path}")
         
         # Show the combined plot
